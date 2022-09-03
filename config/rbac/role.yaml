@@ -1,0 +1,33 @@
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  creationTimestamp: null
+  name: manager-role
+rules:
+- apiGroups:
+  - kubeconfig.k8s.zoomoid.dev
+  resources:
+  - kubeconfigs
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - kubeconfig.k8s.zoomoid.dev
+  resources:
+  - kubeconfigs/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - kubeconfig.k8s.zoomoid.dev
+  resources:
+  - kubeconfigs/status
+  verbs:
+  - get
+  - patch
+  - update
