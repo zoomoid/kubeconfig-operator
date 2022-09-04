@@ -34,8 +34,9 @@ type KubeconfigSpec struct {
 	// +optional
 	// to not cause cascading updates to downstream CSRs and secrets,
 	// this field is immutable, which is enforced by the parallel validating webhook server
-	CSR     CertificateSigningRequest `json:"csr,omitempty"`
-	Cluster Cluster                   `json:"cluster"`
+	AutoApproveCSR bool                      `json:"automaticApproval"`
+	CSR            CertificateSigningRequest `json:"csr,omitempty"`
+	Cluster        Cluster                   `json:"cluster"`
 }
 
 type Cluster struct {

@@ -79,7 +79,7 @@ func (r *KubeconfigReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	if kubeconfig.Spec.Cluster.Server == "" {
 		server, err := r.ClusterEndpoint(ctx)
 		if err != nil {
-			l.Error(err, "failed to obtain cluster endpoint from cluster-info configmap")
+			l.Error(err, "failed to obtain cluster endpoint from cluster-info configmap, defaulting to localhost")
 			server = "https://localhost:6443"
 		}
 		kubeconfig.Spec.Cluster.Server = server
@@ -109,6 +109,7 @@ func (r *KubeconfigReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 					return ctrl.Result{}, err
 				}
 
+				// Create fresh CSR and a secret keeping track of the private/public key, the CSR, and
 				csr = r.csrForKubeconfig(kubeconfig, csrBuffer)
 				secret := r.csrSecretForKubeconfig(kubeconfig, keyBuffer, csrBuffer)
 
@@ -222,11 +223,17 @@ func (r *KubeconfigReconciler) kubeconfigSecret(kubeconfig *kubeconfigv1alpha1.K
 func (r *KubeconfigReconciler) csrForKubeconfig(kubeconfig *kubeconfigv1alpha1.Kubeconfig, csrBuffer *bytes.Buffer) *certificatesv1.CertificateSigningRequest {
 	labels := labelsForSubresources(kubeconfig)
 
+	annotations := map[string]string{}
+	if kubeconfig.Spec.AutoApproveCSR {
+		annotations[CSRAutoApproveAnnotationKey] = "true"
+	}
+
 	csr := &certificatesv1.CertificateSigningRequest{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: kubeconfig.Name,
 			// Namespace: kubeconfig.Namespace,
-			Labels: labels,
+			Labels:      labels,
+			Annotations: annotations,
 		},
 		Spec: certificatesv1.CertificateSigningRequestSpec{
 			Request:    csrBuffer.Bytes(),
