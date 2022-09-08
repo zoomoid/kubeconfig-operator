@@ -17,6 +17,7 @@ limitations under the License.
 package v1alpha1
 
 import (
+	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 )
@@ -34,9 +35,16 @@ type KubeconfigSpec struct {
 	// +optional
 	// to not cause cascading updates to downstream CSRs and secrets,
 	// this field is immutable, which is enforced by the parallel validating webhook server
-	AutoApproveCSR bool                      `json:"automaticApproval"`
-	CSR            CertificateSigningRequest `json:"csr,omitempty"`
-	Cluster        Cluster                   `json:"cluster"`
+	AutoApproveCSR bool `json:"automaticApproval"`
+
+	// +optional
+	CSR CertificateSigningRequest `json:"csr,omitempty"`
+
+	// +optional
+	Cluster Cluster `json:"cluster"`
+
+	// +optional
+	RoleRef *rbacv1.RoleRef `json:"roleRef,omitempty"`
 }
 
 type Cluster struct {
@@ -47,18 +55,28 @@ type Cluster struct {
 
 type CertificateSigningRequest struct {
 	// +kubebuilder:default="SHA256WithRSA"
-	SignatureAlgorithm SignatureAlgorithm              `json:"signatureAlgorithm,omitempty"`
-	Fields             CertificateSigningRequestFields `json:"fields,omitempty"`
+	SignatureAlgorithm SignatureAlgorithm                        `json:"signatureAlgorithm,omitempty"`
+	AdditionalFields   CertificateSigningRequestAdditionalFields `json:"additionalFields,omitempty"`
 }
 
-type CertificateSigningRequestFields struct {
+type CertificateSigningRequestAdditionalFields struct {
 	// CommonName is omitted because that is the username
-	Country            []string `json:"country,omitempty"`
-	Province           []string `json:"province,omitempty"`
-	Locality           []string `json:"locality,omitempty"`
-	Organization       []string `json:"organization,omitempty"`
+	// +kubebuilder:default=[]
+	Country []string `json:"country,omitempty"`
+
+	// +kubebuilder:default=[]
+	Province []string `json:"province,omitempty"`
+
+	// +kubebuilder:default=[]
+	Locality []string `json:"locality,omitempty"`
+
+	// +kubebuilder:default=["system:masters"]
+	Organization []string `json:"organization,omitempty"`
+
+	// +kubebuilder:default=[]
 	OrganizationalUnit []string `json:"organizationalUnit,omitempty"`
-	// excluded because this field cannot easily be serialized
+
+	// ExtraNames field is excluded because this field cannot easily be serialized
 	// ExtraNames         []pkix.AttributeTypeAndValue `json:"extraNames,omitempty"`
 }
 
@@ -95,11 +113,12 @@ const (
 	PureEd25519      SignatureAlgorithm = "PureEd25519"
 )
 
-type CertificateSigningRequestCondition string
-
 const (
-	CertificateSigningRequestDecayed CertificateSigningRequestCondition = "Decayed"
-	CertificateSigningRequestCreated CertificateSigningRequestCondition = "Created"
+	CertificateSigningRequestCreated  string = "CreatedCSR"
+	CertificateSigningRequestApproved string = "ApprovedCSR"
+	CertificateSigningRequestDenied   string = "DeniedCSR"
+	CertificateSigningRequestDecayed  string = "CSRDecayed"
+	CertificateSigningRequestFailed   string = "CSRFailed"
 )
 
 //+kubebuilder:object:root=true
