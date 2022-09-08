@@ -17,6 +17,17 @@ import (
 	certificatesv1 "k8s.io/api/certificates/v1"
 )
 
+const (
+	RSAKeyLength int = 4096
+)
+
+func labelsForSubresources(kubeconfig *kubeconfigv1alpha1.Kubeconfig) map[string]string {
+	return map[string]string{
+		"kubeconfig-operator.k8s.zoomoid.dev/for":      kubeconfig.Name,
+		"kubeconfig-operator.k8s.zoomoid.dev/username": kubeconfig.Spec.Username,
+	}
+}
+
 func parseSignatureAlgorithm(signatureAlgorithm kubeconfigv1alpha1.SignatureAlgorithm) x509.SignatureAlgorithm {
 	switch signatureAlgorithm {
 	case kubeconfigv1alpha1.SHA256WithRSA:
@@ -60,7 +71,7 @@ func getCertApprovalCondition(status *certificatesv1.CertificateSigningRequestSt
 }
 
 func createRSAKey() (priv *rsa.PrivateKey, key *bytes.Buffer) {
-	priv, _ = rsa.GenerateKey(rand.Reader, 4096)
+	priv, _ = rsa.GenerateKey(rand.Reader, RSAKeyLength)
 	pem.Encode(key, &pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(priv)})
 	return
 }
@@ -95,7 +106,7 @@ func (r *KubeconfigReconciler) createCSR(kubeconfig *kubeconfigv1alpha1.Kubeconf
 	}
 
 	csrSpec := kubeconfig.Spec.CSR
-	fields := csrSpec.Fields
+	fields := csrSpec.AdditionalFields
 	subj := pkix.Name{
 		CommonName:         kubeconfig.Spec.Username,
 		Country:            fields.Country,
