@@ -14,7 +14,9 @@ import (
 	"errors"
 
 	kubeconfigv1alpha1 "github.com/zoomoid/kubeconfig-operator/api/v1alpha1"
+	conditions "github.com/zoomoid/kubeconfig-operator/api/v1alpha1/conditions"
 	certificatesv1 "k8s.io/api/certificates/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 const (
@@ -131,31 +133,23 @@ func (r *KubeconfigReconciler) createCSR(kubeconfig *kubeconfigv1alpha1.Kubeconf
 	return encoded, csr, nil
 }
 
-func (r *KubeconfigReconciler) CsrIsDecayed(status *kubeconfigv1alpha1.KubeconfigStatus) bool {
-	return r.hasStatus(status, string(kubeconfigv1alpha1.CertificateSigningRequestDecayed))
+func (r *KubeconfigReconciler) CsrIsDecayed(status *kubeconfigv1alpha1.KubeconfigStatus) metav1.ConditionStatus {
+	return r.hasStatus(status, conditions.ConditionCSRDecayedOrRemoved.Type)
 }
 
-func (r *KubeconfigReconciler) CsrIsCreated(status *kubeconfigv1alpha1.KubeconfigStatus) bool {
-	return r.hasStatus(status, string(kubeconfigv1alpha1.CertificateSigningRequestCreated))
+func (r *KubeconfigReconciler) CsrIsCreated(status *kubeconfigv1alpha1.KubeconfigStatus) metav1.ConditionStatus {
+	return r.hasStatus(status, conditions.ConditionCSRCreated.Type)
 }
 
-func (r *KubeconfigReconciler) CsrIsApproved(status *kubeconfigv1alpha1.KubeconfigStatus) bool {
-	return r.hasStatus(status, string(certificatesv1.CertificateApproved))
+func (r *KubeconfigReconciler) CsrIsApproved(status *kubeconfigv1alpha1.KubeconfigStatus) metav1.ConditionStatus {
+	return r.hasStatus(status, conditions.ConditionCSRApproved.Type)
 }
 
-func (r *KubeconfigReconciler) CsrIsDenied(status *kubeconfigv1alpha1.KubeconfigStatus) bool {
-	return r.hasStatus(status, string(certificatesv1.CertificateDenied))
-}
-
-func (r *KubeconfigReconciler) CsrIsFailed(status *kubeconfigv1alpha1.KubeconfigStatus) bool {
-	return r.hasStatus(status, string(certificatesv1.CertificateFailed))
-}
-
-func (r *KubeconfigReconciler) hasStatus(status *kubeconfigv1alpha1.KubeconfigStatus, condition string) bool {
+func (r *KubeconfigReconciler) hasStatus(status *kubeconfigv1alpha1.KubeconfigStatus, t string) metav1.ConditionStatus {
 	for _, c := range status.Conditions {
-		if c.Type == condition {
-			return true
+		if c.Type == t {
+			return c.Status
 		}
 	}
-	return false
+	return metav1.ConditionUnknown
 }

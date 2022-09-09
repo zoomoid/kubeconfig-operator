@@ -76,7 +76,7 @@ type CertificateSigningRequestAdditionalFields struct {
 	// +kubebuilder:default=[]
 	OrganizationalUnit []string `json:"organizationalUnit,omitempty"`
 
-	// ExtraNames field is excluded because this field cannot easily be serialized
+	// ExtraNames field is excluded because this field cannot easily be serialized by controller-gen
 	// ExtraNames         []pkix.AttributeTypeAndValue `json:"extraNames,omitempty"`
 }
 
@@ -86,9 +86,12 @@ type KubeconfigStatus struct {
 	// Important: Run "make" to regenerate code after modifying this file^
 	Secrets CreatedSecrets `json:"secrets,omitempty"`
 
-	Conditions []metav1.Condition `json:"condition,omitempty"`
+	Conditions []Condition `json:"condition,omitempty"`
 
 	Kubeconfig string `json:"kubeconfig,omitempty"`
+
+	// +kubebuilder:default="unknown"
+	Phase string `json:"phase,omitempty"`
 }
 
 type CreatedSecrets struct {
@@ -113,13 +116,7 @@ const (
 	PureEd25519      SignatureAlgorithm = "PureEd25519"
 )
 
-const (
-	CertificateSigningRequestCreated  string = "CreatedCSR"
-	CertificateSigningRequestApproved string = "ApprovedCSR"
-	CertificateSigningRequestDenied   string = "DeniedCSR"
-	CertificateSigningRequestDecayed  string = "CSRDecayed"
-	CertificateSigningRequestFailed   string = "CSRFailed"
-)
+type Condition metav1.Condition
 
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status

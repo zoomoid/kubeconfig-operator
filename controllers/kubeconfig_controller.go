@@ -31,6 +31,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	kubeconfigv1alpha1 "github.com/zoomoid/kubeconfig-operator/api/v1alpha1"
+	conditions "github.com/zoomoid/kubeconfig-operator/api/v1alpha1/conditions"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -75,11 +76,9 @@ func (r *KubeconfigReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		return ctrl.Result{}, err
 	}
 
-	approved, denied, failed := r.CsrIsApproved(&kubeconfig.Status), r.CsrIsDenied(&kubeconfig.Status), r.CsrIsFailed(&kubeconfig.Status)
+	approvedStatus := r.CsrIsApproved(&kubeconfig.Status)
 
-	unknownCSRState := !approved && !denied && !failed // could not find any CSR-related conditions in the kubeconfig status
-
-	if unknownCSRState {
+	if approvedStatus == metav1.ConditionUnknown {
 		// CSR status condition updates did not include a terminal condition yet, get the CSR object from the API
 		csr := &certificatesv1.CertificateSigningRequest{}
 		err = r.Get(ctx, types.NamespacedName{Namespace: kubeconfig.Namespace, Name: kubeconfig.Name}, csr)
@@ -105,42 +104,48 @@ func (r *KubeconfigReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		// CSR status was changed, update Kubeconfig conditions and overall status
 		if !csrApproved && (csrDenied || csrFailed) {
 			// CSR was denied or failed, mark this Kubeconfig resource request as being failed
-			kubeconfig.Status.Conditions = append(kubeconfig.Status.Conditions, metav1.Condition{
-				Status:             metav1.ConditionTrue,
-				Type:               "Failed",
-				Reason:             "CSRDenial",
+			kubeconfig.Status.UpdateCondition(conditions.CSRApproved(kubeconfigv1alpha1.Condition{
+				Status:             metav1.ConditionFalse,
+				Reason:             "CSRDeniedOrFailed",
 				Message:            "CSR for the kubeconfig was denied",
 				LastTransitionTime: metav1.Now(),
-			})
-
+			}))
 			// Update kubeconfig and exit early
+			// TODO check if the secret exists before updating
 			err = r.Update(ctx, kubeconfig)
 			return ctrl.Result{}, err
 		}
 	}
 
 	// updated approval state for this reonciler run
-	kubeconfig.Status.Conditions = append(kubeconfig.Status.Conditions, metav1.Condition{
+	kubeconfig.Status.UpdateCondition(conditions.CSRApproved(kubeconfigv1alpha1.Condition{
 		Status:             metav1.ConditionTrue,
-		Type:               "Approved",
 		Reason:             "CSRApproval",
 		Message:            "CSR for the kubeconfig was approved",
 		LastTransitionTime: metav1.Now(),
-	})
-	kubeConfigSecret, err := r.findOrCreateKubeconfig(ctx, kubeconfig)
-	if err != nil {
+	}))
 
-	}
-
-	err = r.Create(ctx, kubeConfigSecret)
+	kubeConfigSecret, create, err := r.findOrCreateKubeconfig(ctx, kubeconfig)
 	if err != nil {
-		kubeconfig.Status.Conditions = append(kubeconfig.Status.Conditions, metav1.Condition{
-			Type:               "Failed",
+		kubeconfig.Status.UpdateCondition(conditions.KubeconfigSecretCreated(kubeconfigv1alpha1.Condition{
 			Status:             metav1.ConditionFalse,
-			Reason:             "KubeconfigSecretCreation",
-			Message:            fmt.Sprintf("Failed to create kubeconfig secret resource %s/%s, %v", kubeConfigSecret.Namespace, kubeConfigSecret.Name, err),
+			Reason:             "CreationError",
+			Message:            fmt.Sprintf("Failed to find or create kubeconfig secret, %v", err),
 			LastTransitionTime: metav1.Now(),
-		})
+		}))
+	}
+	if create {
+		err = r.Create(ctx, kubeConfigSecret)
+	} else {
+		err = r.Update(ctx, kubeConfigSecret)
+	}
+	if err != nil {
+		kubeconfig.Status.UpdateCondition(conditions.KubeconfigSecretCreated(kubeconfigv1alpha1.Condition{
+			Status:             metav1.ConditionFalse,
+			Reason:             "TransactionError",
+			Message:            fmt.Sprintf("Failed to create kubeconfig secret resource %s/%s at API server, %v", kubeConfigSecret.Namespace, kubeConfigSecret.Name, err),
+			LastTransitionTime: metav1.Now(),
+		}))
 
 		// Update kubeconfig and exit early
 		err = r.Update(ctx, kubeconfig)
@@ -160,7 +165,6 @@ func (r *KubeconfigReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		return ctrl.Result{Requeue: true}, err
 	}
 
-	// CSR is still available and in-flight, wait for the next update reconciliation
 	return ctrl.Result{}, nil
 }
 
@@ -173,22 +177,24 @@ func (r *KubeconfigReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Complete(r)
 }
 
-func (r *KubeconfigReconciler) findOrCreateKubeconfig(ctx context.Context, kubeconfig *kubeconfigv1alpha1.Kubeconfig) (*corev1.Secret, error) {
+func (r *KubeconfigReconciler) findOrCreateKubeconfig(ctx context.Context, kubeconfig *kubeconfigv1alpha1.Kubeconfig) (*corev1.Secret, bool, error) {
 	resourceName := fmt.Sprintf("%s-kubeconfig", kubeconfig.Name)
-
+	create := false
 	secret := &corev1.Secret{}
 	err := r.Get(ctx, types.NamespacedName{Namespace: kubeconfig.Namespace, Name: resourceName}, secret)
 	if err != nil && !apierrors.IsNotFound(err) {
 		// Any error during retrieval except Not Found is a true error case
-		return nil, err
+		return nil, false, err
 	}
 	if apierrors.IsNotFound(err) {
+		create = false
+		// If secret does not exist yet, create it
 		secret = r.kubeconfigSecret(kubeconfig)
 	}
 
 	cfg, err := r.createKubeconfig(ctx, kubeconfig)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 
 	kubeconfig.Status.Kubeconfig = string(cfg)
@@ -199,7 +205,7 @@ func (r *KubeconfigReconciler) findOrCreateKubeconfig(ctx context.Context, kubec
 		Name:      secret.Name,
 	}
 
-	return secret, nil
+	return secret, create, nil
 }
 
 // createKubeconfig creates a fresh kubeconfig from several cluster resources
@@ -249,43 +255,39 @@ func (r *KubeconfigReconciler) csrNotFound(ctx context.Context, kubeconfig *kube
 	if apierrors.IsNotFound(err) {
 		// CSR for kubeconfig does not exist yet or has decayed
 		created := r.CsrIsCreated(&kubeconfig.Status)
-		if created {
+		if created == metav1.ConditionTrue {
 			// if CSR was created previously and now is unavailable, it has decayed
 			// in the meantime due to the timeouts, either approved, denied, or failed
-			approved, _, _ := r.CsrIsApproved(&kubeconfig.Status), r.CsrIsDenied(&kubeconfig.Status), r.CsrIsFailed(&kubeconfig.Status)
+			approved := r.CsrIsApproved(&kubeconfig.Status)
 
 			// TODO approval should have been reported correctly, and is this only case that is valid here.
 			// If the other states appeared, propagate those to the conditions list and mark the condition of
 			// of the CR as final
 
-			if !approved {
+			if approved != metav1.ConditionTrue {
 				err = fmt.Errorf("CSR approval for %s/%s failed terminally", kubeconfig.Namespace, kubeconfig.Name)
 				l.V(0).Error(err, "CSR is gone but no approval was reported, marking kubeconfig condition as failed")
 
-				kubeconfig.Status.Conditions = append(kubeconfig.Status.Conditions, metav1.Condition{
-					Type:               kubeconfigv1alpha1.CertificateSigningRequestFailed,
+				kubeconfig.Status.UpdateCondition(conditions.CSRApproved(kubeconfigv1alpha1.Condition{
 					Reason:             "CsrCreatedButNotApprovedBeforeDecay",
+					Status:             metav1.ConditionFalse,
 					Message:            fmt.Sprintf("CSR was created but not approved before deleted/decayed, %v", err),
-					Status:             metav1.ConditionTrue,
 					LastTransitionTime: metav1.Now(),
-				})
+				}))
 
 				return ctrl.Result{}, err
 			}
-
 		} else {
-
 			// create a fresh CSR
 			keyBuffer, csrBuffer, err := r.createCSR(kubeconfig)
 			if err != nil {
 				// append failure condition to Kubeconfig object
-				kubeconfig.Status.Conditions = append(kubeconfig.Status.Conditions, metav1.Condition{
-					Type:               kubeconfigv1alpha1.CertificateSigningRequestCreated,
+				kubeconfig.Status.UpdateCondition(conditions.CSRCreated(kubeconfigv1alpha1.Condition{
 					Reason:             "CsrCreationFailed",
 					Message:            fmt.Sprintf("Failed to generate private key and certificate signing request, %v", err),
 					Status:             metav1.ConditionFalse,
 					LastTransitionTime: metav1.Now(),
-				})
+				}))
 
 				return ctrl.Result{}, err
 			}
@@ -303,13 +305,12 @@ func (r *KubeconfigReconciler) csrNotFound(ctx context.Context, kubeconfig *kube
 			}
 		}
 
-		kubeconfig.Status.Conditions = append(kubeconfig.Status.Conditions, metav1.Condition{
-			Type:               kubeconfigv1alpha1.CertificateSigningRequestCreated,
+		kubeconfig.Status.UpdateCondition(conditions.CSRCreated(kubeconfigv1alpha1.Condition{
 			Reason:             "CSRCreated",
 			Message:            "Created CSR for kubeconfig request",
 			Status:             metav1.ConditionTrue,
 			LastTransitionTime: metav1.Now(),
-		})
+		}))
 
 		// TODO: add more steps here
 
