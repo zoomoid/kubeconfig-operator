@@ -116,8 +116,6 @@ const (
 	PureEd25519      SignatureAlgorithm = "PureEd25519"
 )
 
-type Condition metav1.Condition
-
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
 

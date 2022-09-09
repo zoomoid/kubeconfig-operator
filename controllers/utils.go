@@ -14,7 +14,6 @@ import (
 	"errors"
 
 	kubeconfigv1alpha1 "github.com/zoomoid/kubeconfig-operator/api/v1alpha1"
-	conditions "github.com/zoomoid/kubeconfig-operator/api/v1alpha1/conditions"
 	certificatesv1 "k8s.io/api/certificates/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -133,16 +132,12 @@ func (r *KubeconfigReconciler) createCSR(kubeconfig *kubeconfigv1alpha1.Kubeconf
 	return encoded, csr, nil
 }
 
-func (r *KubeconfigReconciler) CsrIsDecayed(status *kubeconfigv1alpha1.KubeconfigStatus) metav1.ConditionStatus {
-	return r.hasStatus(status, conditions.ConditionCSRDecayedOrRemoved.Type)
-}
-
 func (r *KubeconfigReconciler) CsrIsCreated(status *kubeconfigv1alpha1.KubeconfigStatus) metav1.ConditionStatus {
-	return r.hasStatus(status, conditions.ConditionCSRCreated.Type)
+	return r.hasStatus(status, kubeconfigv1alpha1.ConditionCSRCreated.Type)
 }
 
 func (r *KubeconfigReconciler) CsrIsApproved(status *kubeconfigv1alpha1.KubeconfigStatus) metav1.ConditionStatus {
-	return r.hasStatus(status, conditions.ConditionCSRApproved.Type)
+	return r.hasStatus(status, kubeconfigv1alpha1.ConditionCSRApproved.Type)
 }
 
 func (r *KubeconfigReconciler) hasStatus(status *kubeconfigv1alpha1.KubeconfigStatus, t string) metav1.ConditionStatus {

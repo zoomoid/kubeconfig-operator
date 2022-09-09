@@ -31,7 +31,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	kubeconfigv1alpha1 "github.com/zoomoid/kubeconfig-operator/api/v1alpha1"
-	conditions "github.com/zoomoid/kubeconfig-operator/api/v1alpha1/conditions"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -104,7 +103,7 @@ func (r *KubeconfigReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		// CSR status was changed, update Kubeconfig conditions and overall status
 		if !csrApproved && (csrDenied || csrFailed) {
 			// CSR was denied or failed, mark this Kubeconfig resource request as being failed
-			kubeconfig.Status.UpdateCondition(conditions.CSRApproved(kubeconfigv1alpha1.Condition{
+			kubeconfig.Status.UpdateCondition(kubeconfigv1alpha1.CSRApproved(kubeconfigv1alpha1.Condition{
 				Status:             metav1.ConditionFalse,
 				Reason:             "CSRDeniedOrFailed",
 				Message:            "CSR for the kubeconfig was denied",
@@ -118,7 +117,7 @@ func (r *KubeconfigReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	}
 
 	// updated approval state for this reonciler run
-	kubeconfig.Status.UpdateCondition(conditions.CSRApproved(kubeconfigv1alpha1.Condition{
+	kubeconfig.Status.UpdateCondition(kubeconfigv1alpha1.CSRApproved(kubeconfigv1alpha1.Condition{
 		Status:             metav1.ConditionTrue,
 		Reason:             "CSRApproval",
 		Message:            "CSR for the kubeconfig was approved",
@@ -127,7 +126,7 @@ func (r *KubeconfigReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 
 	kubeConfigSecret, create, err := r.findOrCreateKubeconfig(ctx, kubeconfig)
 	if err != nil {
-		kubeconfig.Status.UpdateCondition(conditions.KubeconfigSecretCreated(kubeconfigv1alpha1.Condition{
+		kubeconfig.Status.UpdateCondition(kubeconfigv1alpha1.KubeconfigSecretCreated(kubeconfigv1alpha1.Condition{
 			Status:             metav1.ConditionFalse,
 			Reason:             "CreationError",
 			Message:            fmt.Sprintf("Failed to find or create kubeconfig secret, %v", err),
@@ -140,7 +139,7 @@ func (r *KubeconfigReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		err = r.Update(ctx, kubeConfigSecret)
 	}
 	if err != nil {
-		kubeconfig.Status.UpdateCondition(conditions.KubeconfigSecretCreated(kubeconfigv1alpha1.Condition{
+		kubeconfig.Status.UpdateCondition(kubeconfigv1alpha1.KubeconfigSecretCreated(kubeconfigv1alpha1.Condition{
 			Status:             metav1.ConditionFalse,
 			Reason:             "TransactionError",
 			Message:            fmt.Sprintf("Failed to create kubeconfig secret resource %s/%s at API server, %v", kubeConfigSecret.Namespace, kubeConfigSecret.Name, err),
@@ -268,7 +267,7 @@ func (r *KubeconfigReconciler) csrNotFound(ctx context.Context, kubeconfig *kube
 				err = fmt.Errorf("CSR approval for %s/%s failed terminally", kubeconfig.Namespace, kubeconfig.Name)
 				l.V(0).Error(err, "CSR is gone but no approval was reported, marking kubeconfig condition as failed")
 
-				kubeconfig.Status.UpdateCondition(conditions.CSRApproved(kubeconfigv1alpha1.Condition{
+				kubeconfig.Status.UpdateCondition(kubeconfigv1alpha1.CSRApproved(kubeconfigv1alpha1.Condition{
 					Reason:             "CsrCreatedButNotApprovedBeforeDecay",
 					Status:             metav1.ConditionFalse,
 					Message:            fmt.Sprintf("CSR was created but not approved before deleted/decayed, %v", err),
@@ -282,7 +281,7 @@ func (r *KubeconfigReconciler) csrNotFound(ctx context.Context, kubeconfig *kube
 			keyBuffer, csrBuffer, err := r.createCSR(kubeconfig)
 			if err != nil {
 				// append failure condition to Kubeconfig object
-				kubeconfig.Status.UpdateCondition(conditions.CSRCreated(kubeconfigv1alpha1.Condition{
+				kubeconfig.Status.UpdateCondition(kubeconfigv1alpha1.CSRCreated(kubeconfigv1alpha1.Condition{
 					Reason:             "CsrCreationFailed",
 					Message:            fmt.Sprintf("Failed to generate private key and certificate signing request, %v", err),
 					Status:             metav1.ConditionFalse,
@@ -305,7 +304,7 @@ func (r *KubeconfigReconciler) csrNotFound(ctx context.Context, kubeconfig *kube
 			}
 		}
 
-		kubeconfig.Status.UpdateCondition(conditions.CSRCreated(kubeconfigv1alpha1.Condition{
+		kubeconfig.Status.UpdateCondition(kubeconfigv1alpha1.CSRCreated(kubeconfigv1alpha1.Condition{
 			Reason:             "CSRCreated",
 			Message:            "Created CSR for kubeconfig request",
 			Status:             metav1.ConditionTrue,

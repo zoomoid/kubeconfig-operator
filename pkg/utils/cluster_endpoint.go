@@ -11,6 +11,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
+// ClusterEndpoint retrieves the (public) cluster endpoint from the generic kubeconfig
+// embedded in the configmap kube-public/cluster-info, or fails with an error
 func ClusterEndpoint(ctx context.Context, client client.Client) (string, error) {
 	clusterInfoCM := &corev1.ConfigMap{}
 	err := client.Get(ctx, types.NamespacedName{Namespace: "kube-public", Name: "cluster-info"}, clusterInfoCM)
