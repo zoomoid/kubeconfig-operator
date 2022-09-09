@@ -1,0 +1,47 @@
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: MutatingWebhookConfiguration
+metadata:
+  creationTimestamp: null
+  name: mutating-webhook-configuration
+webhooks:
+- admissionReviewVersions:
+  - v1
+  clientConfig:
+    service:
+      name: webhook-service
+      namespace: system
+      path: /mutate-kubeconfig-k8s-zoomoid-dev-v1alpha1-kubeconfig
+  failurePolicy: Fail
+  name: mkubeconfig.kb.io
+  rules:
+  - apiGroups:
+    - kubeconfig.k8s.zoomoid.dev
+    apiVersions:
+    - v1alpha1
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - kubeconfigs
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  clientConfig:
+    service:
+      name: webhook-service
+      namespace: system
+      path: /validate-kubeconfig-k8s-zoomoid-dev-v1alpha1-kubeconfig
+  failurePolicy: Fail
+  name: vkubeconfig.kb.io
+  rules:
+  - apiGroups:
+    - kubeconfig.k8s.zoomoid.dev
+    apiVersions:
+    - v1alpha1
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - kubeconfigs
+  sideEffects: None

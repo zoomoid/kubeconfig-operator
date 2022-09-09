@@ -199,7 +199,7 @@ func (r *KubeconfigReconciler) findOrCreateKubeconfig(ctx context.Context, kubec
 	kubeconfig.Status.Kubeconfig = string(cfg)
 	secret.Data["kubeconfig"] = cfg
 
-	kubeconfig.Status.Secrets.Kubeconfig = types.NamespacedName{
+	kubeconfig.Status.Secrets.Kubeconfig = kubeconfigv1alpha1.SecretRef{
 		Namespace: secret.Namespace,
 		Name:      secret.Name,
 	}
@@ -298,7 +298,7 @@ func (r *KubeconfigReconciler) csrNotFound(ctx context.Context, kubeconfig *kube
 			_ = r.Create(ctx, secret)
 			_ = r.Create(ctx, csr)
 
-			kubeconfig.Status.Secrets.ClientTLS = types.NamespacedName{
+			kubeconfig.Status.Secrets.ClientTLS = kubeconfigv1alpha1.SecretRef{
 				Namespace: secret.Namespace,
 				Name:      secret.Name,
 			}

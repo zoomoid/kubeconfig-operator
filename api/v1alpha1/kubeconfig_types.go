@@ -19,7 +19,6 @@ package v1alpha1
 import (
 	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/types"
 )
 
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
@@ -31,7 +30,7 @@ type KubeconfigSpec struct {
 	Username string `json:"username,omitempty"`
 	// +optional
 	// this field is also immutable
-	ExistingCSR types.NamespacedName `json:"existingCSR,omitempty"`
+	ExistingCSR SecretRef `json:"existingCSR,omitempty"`
 	// +optional
 	// to not cause cascading updates to downstream CSRs and secrets,
 	// this field is immutable, which is enforced by the parallel validating webhook server
@@ -45,6 +44,11 @@ type KubeconfigSpec struct {
 
 	// +optional
 	RoleRef *rbacv1.RoleRef `json:"roleRef,omitempty"`
+}
+
+type SecretRef struct {
+	Name      string `json:"name"`
+	Namespace string `json:"namespace"`
 }
 
 type Cluster struct {
@@ -95,8 +99,8 @@ type KubeconfigStatus struct {
 }
 
 type CreatedSecrets struct {
-	Kubeconfig types.NamespacedName `json:"kubeconfig,omitempty"`
-	ClientTLS  types.NamespacedName `json:"clientKey,omitempty"`
+	Kubeconfig SecretRef `json:"kubeconfigRef,omitempty"`
+	ClientTLS  SecretRef `json:"clientKeyRef,omitempty"`
 }
 
 type SignatureAlgorithm string
