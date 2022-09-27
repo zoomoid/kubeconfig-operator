@@ -65,19 +65,19 @@ type CertificateSigningRequest struct {
 
 type CertificateSigningRequestAdditionalFields struct {
 	// CommonName is omitted because that is the username
-	// +kubebuilder:default=[]
+	// +kubebuilder:default={}
 	Country []string `json:"country,omitempty"`
 
-	// +kubebuilder:default=[]
+	// +kubebuilder:default={}
 	Province []string `json:"province,omitempty"`
 
-	// +kubebuilder:default=[]
+	// +kubebuilder:default={}
 	Locality []string `json:"locality,omitempty"`
 
-	// +kubebuilder:default=["system:masters"]
+	// +kubebuilder:default={"system:masters"}
 	Organization []string `json:"organization,omitempty"`
 
-	// +kubebuilder:default=[]
+	// +kubebuilder:default={}
 	OrganizationalUnit []string `json:"organizationalUnit,omitempty"`
 
 	// ExtraNames field is excluded because this field cannot easily be serialized by controller-gen
