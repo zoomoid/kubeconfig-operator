@@ -59,7 +59,7 @@ func (s *KubeconfigStatus) conditionExists(condition Condition) (bool, int) {
 }
 
 func (s *KubeconfigStatus) defaultConditions() {
-	s.Conditions = Default(s.Conditions)
+	s.Conditions = DefaultConditions(s.Conditions)
 }
 
 func (r ConditionList) Contains(c Condition) bool {
@@ -71,8 +71,8 @@ func (r ConditionList) Contains(c Condition) bool {
 	return false
 }
 
-// Default adds fresh conditions if their type does not yet exist
-func Default(existingConditions []Condition) []Condition {
+// DefaultConditions adds fresh conditions if their type does not yet exist
+func DefaultConditions(existingConditions []Condition) []Condition {
 	cl := ConditionList(existingConditions)
 	if !cl.Contains(ConditionCSRCreated) {
 		cl = append(cl, CSRCreated(Condition{
