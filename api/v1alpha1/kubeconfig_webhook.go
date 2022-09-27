@@ -84,7 +84,7 @@ func (r *kubeconfigDefaulter) Default(ctx context.Context, obj runtime.Object) e
 		}
 	}
 
-	kubeconfig.Status.defaultConditions()
+	kubeconfig.Status.Conditions = DefaultConditions(kubeconfig.Status.Conditions)
 
 	return nil
 }

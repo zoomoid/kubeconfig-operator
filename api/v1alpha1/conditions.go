@@ -9,7 +9,7 @@ import (
 
 // type ConditionList []Condition
 
-var (
+const (
 	ConditionTypeCSRCreated              string = "CSRCreated"
 	ConditionTypeCSRApproved             string = "CSRApproved"
 	ConditionTypeUserSecretCreated       string = "UserSecretCreated"
@@ -17,10 +17,6 @@ var (
 	ConditionTypeKubeconfigSecretCreated string = "KubeconfigSecretCreated"
 	ConditionTypeKubeconfigFinished      string = "KubeconfigFinished"
 )
-
-func (s *KubeconfigStatus) defaultConditions() {
-	s.Conditions = DefaultConditions(s.Conditions)
-}
 
 // DefaultConditions adds fresh conditions if their type does not yet exist
 func DefaultConditions(cl []metav1.Condition) []metav1.Condition {

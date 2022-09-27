@@ -88,8 +88,12 @@ type CertificateSigningRequestAdditionalFields struct {
 type KubeconfigStatus struct {
 	Secrets CreatedSecrets `json:"secrets,omitempty"`
 
+	// +listType=map
+	// +listMapKey=type
+	// +optional
 	Conditions []metav1.Condition `json:"condition,omitempty"`
 
+	// +optional
 	Kubeconfig string `json:"kubeconfig,omitempty"`
 
 	// +kubebuilder:default="unknown"
@@ -128,8 +132,9 @@ type Kubeconfig struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   KubeconfigSpec   `json:"spec,omitempty"`
-	Status KubeconfigStatus `json:"status,omitempty"`
+	Spec KubeconfigSpec `json:"spec"`
+	// +optional
+	Status KubeconfigStatus `json:"status"`
 }
 
 //+kubebuilder:object:root=true
