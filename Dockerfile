@@ -13,6 +13,7 @@ RUN go mod download
 COPY main.go main.go
 COPY api/ api/
 COPY controllers/ controllers/
+COPY pkg/ pkg/
 
 # Build
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -a -o manager main.go
@@ -20,6 +21,11 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -a -o manager main.go
 # Use distroless as minimal base image to package the manager binary
 # Refer to https://github.com/GoogleContainerTools/distroless for more details
 FROM gcr.io/distroless/static:nonroot
+
+LABEL org.opencontainers.image.source https://github.com/zoomoid/kubeconfig-operator
+LABEL org.opencontainers.image.description "A Kubernetes Operator made with operator-sdk for automatically creating Kubeconfigs for additional users"
+LABEL org.opencontainers.image.licenses "Apache-2.0"
+
 WORKDIR /
 COPY --from=builder /workspace/manager .
 USER 65532:65532
