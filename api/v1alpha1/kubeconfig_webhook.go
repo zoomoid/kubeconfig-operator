@@ -90,7 +90,8 @@ func (r *kubeconfigDefaulter) Default(ctx context.Context, obj runtime.Object) e
 }
 
 // TODO(user): change verbs to "verbs=create;update;delete" if you want to enable deletion validation.
-//+kubebuilder:webhook:path=/validate-kubeconfig-k8s-zoomoid-dev-v1alpha1-kubeconfig,mutating=true,failurePolicy=fail,sideEffects=None,groups=kubeconfig.k8s.zoomoid.dev,resources=kubeconfigs,verbs=create;update,versions=v1alpha1,name=vkubeconfig.kb.io,admissionReviewVersions=v1
+
+//+kubebuilder:webhook:path=/validate-kubeconfig-k8s-zoomoid-dev-v1alpha1-kubeconfig,mutating=false,failurePolicy=fail,sideEffects=None,groups=kubeconfig.k8s.zoomoid.dev,resources=kubeconfigs,verbs=create;update,versions=v1alpha1,name=vkubeconfig.kb.io,admissionReviewVersions=v1
 
 type kubeconfigValidator struct {
 	client client.Client

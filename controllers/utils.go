@@ -15,7 +15,6 @@ import (
 
 	kubeconfigv1alpha1 "github.com/zoomoid/kubeconfig-operator/api/v1alpha1"
 	certificatesv1 "k8s.io/api/certificates/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 const (
@@ -132,19 +131,19 @@ func (r *KubeconfigReconciler) createCSR(kubeconfig *kubeconfigv1alpha1.Kubeconf
 	return encoded, csr, nil
 }
 
-func (r *KubeconfigReconciler) CsrIsCreated(status *kubeconfigv1alpha1.KubeconfigStatus) metav1.ConditionStatus {
-	return r.hasStatus(status, kubeconfigv1alpha1.ConditionCSRCreated.Type)
-}
+// func (r *KubeconfigReconciler) CsrIsCreated(status *kubeconfigv1alpha1.KubeconfigStatus) metav1.ConditionStatus {
+// 	return r.hasStatus(status, kubeconfigv1alpha1.ConditionCSRCreated.Type)
+// }
 
-func (r *KubeconfigReconciler) CsrIsApproved(status *kubeconfigv1alpha1.KubeconfigStatus) metav1.ConditionStatus {
-	return r.hasStatus(status, kubeconfigv1alpha1.ConditionCSRApproved.Type)
-}
+// func (r *KubeconfigReconciler) CsrIsApproved(status *kubeconfigv1alpha1.KubeconfigStatus) metav1.ConditionStatus {
+// 	return r.hasStatus(status, kubeconfigv1alpha1.ConditionTypeCSRApproved)
+// }
 
-func (r *KubeconfigReconciler) hasStatus(status *kubeconfigv1alpha1.KubeconfigStatus, t string) metav1.ConditionStatus {
-	for _, c := range status.Conditions {
-		if c.Type == t {
-			return c.Status
-		}
-	}
-	return metav1.ConditionUnknown
-}
+// func (r *KubeconfigReconciler) hasStatus(status *kubeconfigv1alpha1.KubeconfigStatus, t string) metav1.ConditionStatus {
+// 	for _, c := range status.Conditions {
+// 		if c.Type == t {
+// 			return c.Status
+// 		}
+// 	}
+// 	return metav1.ConditionUnknown
+// }

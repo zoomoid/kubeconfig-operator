@@ -86,11 +86,9 @@ type CertificateSigningRequestAdditionalFields struct {
 
 // KubeconfigStatus defines the observed state of Kubeconfig
 type KubeconfigStatus struct {
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "make" to regenerate code after modifying this file^
 	Secrets CreatedSecrets `json:"secrets,omitempty"`
 
-	Conditions []Condition `json:"condition,omitempty"`
+	Conditions []metav1.Condition `json:"condition,omitempty"`
 
 	Kubeconfig string `json:"kubeconfig,omitempty"`
 
@@ -120,8 +118,10 @@ const (
 	PureEd25519      SignatureAlgorithm = "PureEd25519"
 )
 
-//+kubebuilder:object:root=true
-//+kubebuilder:subresource:status
+// +kubebuilder:object:root=true
+// +kubebuilder:subresource:status
+// +kubebuilder:printcolumn:name="For",type=string,JSONPath=`.spec.username`
+// +kubebuilder:printcolumn:name="Phase",type=string,JSONPath=`.status.phase`
 
 // Kubeconfig is the Schema for the kubeconfigs API
 type Kubeconfig struct {
