@@ -291,7 +291,7 @@ func (r *KubeconfigReconciler) csrNotFound(ctx context.Context, kubeconfig *kube
 				return ctrl.Result{}, err
 			}
 
-			// Create fresh CSR and a secret keeping track of the private/public key, the CSR, and
+			// Create fresh CSR and a secret keeping track of the private/public key and the CSR
 			csr := r.csr(kubeconfig, csrBuffer)
 			secret := r.certificateSecret(kubeconfig, keyBuffer, csrBuffer)
 

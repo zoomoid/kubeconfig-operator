@@ -20,7 +20,7 @@ import (
 	"context"
 	"reflect"
 
-	"github.com/zoomoid/kubeconfig-operator/internal/utils"
+	"github.com/zoomoid/kubeconfig-operator/pkg/utils"
 	rbacv1 "k8s.io/api/rbac/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
