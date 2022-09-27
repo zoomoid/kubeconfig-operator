@@ -20,7 +20,7 @@ import (
 	"context"
 	"reflect"
 
-	"github.com/zoomoid/kubeconfig-operator/pkg/utils"
+	"github.com/zoomoid/kubeconfig-operator/internal/utils"
 	rbacv1 "k8s.io/api/rbac/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -38,7 +38,7 @@ var kubeconfiglog = logf.Log.WithName("kubeconfig-resource")
 
 func (r *Kubeconfig) SetupWebhookWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewWebhookManagedBy(mgr).
-		// For(r).
+		For(r).
 		WithDefaulter(&kubeconfigDefaulter{}).
 		WithValidator(&kubeconfigValidator{}).
 		Complete()
