@@ -50,6 +50,7 @@ var (
 // +kubebuilder:rbac:groups=kubeconfig.k8s.zoomoid.dev,resources=kubeconfigs/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=kubeconfig.k8s.zoomoid.dev,resources=kubeconfigs/finalizers,verbs=update
 // +kubebuilder:rbac:groups=core,resources=secrets,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=core,resources=configmaps,verbs=get;list;watch
 // +kubebuilder:rbac:groups=certificates.k8s.io,resources=certificatesigningrequests,verbs=get;list;watch;create;update;patch;delete
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
@@ -139,11 +140,15 @@ func (r *KubeconfigReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 			Message:            fmt.Sprintf("Failed to find or create kubeconfig secret, %v", err),
 			LastTransitionTime: metav1.Now(),
 		})
+
+		// exit early
+		err = r.Update(ctx, kubeconfig)
+		return ctrl.Result{}, err
 	}
 	if create {
-		err = r.Create(ctx, kubeConfigSecret)
+		err = r.Client.Create(ctx, kubeConfigSecret)
 	} else {
-		err = r.Update(ctx, kubeConfigSecret)
+		err = r.Client.Update(ctx, kubeConfigSecret)
 	}
 	if err != nil {
 		meta.SetStatusCondition(&kubeconfig.Status.Conditions, metav1.Condition{
