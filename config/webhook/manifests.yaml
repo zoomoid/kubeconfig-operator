@@ -11,9 +11,9 @@ webhooks:
     service:
       name: webhook-service
       namespace: system
-      path: /mutate-kubeconfig-k8s-zoomoid-dev-v1alpha1-kubeconfig
+      path: /validate-kubeconfig-k8s-zoomoid-dev-v1alpha1-kubeconfig
   failurePolicy: Fail
-  name: mkubeconfig.kb.io
+  name: vkubeconfig.kb.io
   rules:
   - apiGroups:
     - kubeconfig.k8s.zoomoid.dev
@@ -31,9 +31,9 @@ webhooks:
     service:
       name: webhook-service
       namespace: system
-      path: /validate-kubeconfig-k8s-zoomoid-dev-v1alpha1-kubeconfig
+      path: /mutate-kubeconfig-k8s-zoomoid-dev-v1alpha1-kubeconfig
   failurePolicy: Fail
-  name: vkubeconfig.kb.io
+  name: mkubeconfig.kb.io
   rules:
   - apiGroups:
     - kubeconfig.k8s.zoomoid.dev
