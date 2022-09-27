@@ -89,11 +89,18 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err = (&controllers.CertificateSigningRequestReconciler{
+	if err = (&controllers.KubeconfigReconciler{
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Kubeconfig")
+		os.Exit(1)
+	}
+	if err = (&controllers.CertificateSigningRequestReconciler{
+		Client: mgr.GetClient(),
+		Scheme: mgr.GetScheme(),
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "CertificateSigningRequest")
 		os.Exit(1)
 	}
 	if err = (&kubeconfigv1alpha1.Kubeconfig{}).SetupWebhookWithManager(mgr); err != nil {
