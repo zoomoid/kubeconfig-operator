@@ -29,7 +29,8 @@ BUNDLE_METADATA_OPTS ?= $(BUNDLE_CHANNELS) $(BUNDLE_DEFAULT_CHANNEL)
 #
 # For example, running 'make bundle-build bundle-push catalog-build catalog-push' will build and push both
 # k8s.zoomoid.dev/kubeconfig-operator-bundle:$VERSION and k8s.zoomoid.dev/kubeconfig-operator-catalog:$VERSION.
-IMAGE_TAG_BASE ?= k8s.zoomoid.dev/kubeconfig-operator
+# IMAGE_TAG_BASE ?= k8s.zoomoid.dev/kubeconfig-operator
+IMAGE_TAG_BASE ?= ghcr.io/zoomoid/kubeconfig-operator
 
 # BUNDLE_IMG defines the image:tag used for the bundle.
 # You can use it as an arg. (E.g make bundle-build BUNDLE_IMG=<some-registry>/<project-name-bundle>:<tag>)
