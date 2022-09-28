@@ -123,7 +123,7 @@ const (
 )
 
 // +kubebuilder:object:root=true
-// +kubebuilder:subresource:status
+/* // +kubebuilder:subresource:status */
 // +kubebuilder:printcolumn:name="For",type=string,JSONPath=`.spec.username`
 // +kubebuilder:printcolumn:name="Phase",type=string,JSONPath=`.status.phase`
 
@@ -134,7 +134,7 @@ type Kubeconfig struct {
 
 	Spec KubeconfigSpec `json:"spec"`
 	// +optional
-	Status KubeconfigStatus `json:"status"`
+	Status KubeconfigStatus `json:"status,omitempty"`
 }
 
 //+kubebuilder:object:root=true
