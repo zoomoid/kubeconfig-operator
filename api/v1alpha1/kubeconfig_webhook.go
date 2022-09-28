@@ -23,6 +23,8 @@ import (
 	"github.com/zoomoid/kubeconfig-operator/pkg/utils"
 	rbacv1 "k8s.io/api/rbac/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/validation/field"
@@ -39,8 +41,12 @@ var kubeconfiglog = logf.Log.WithName("kubeconfig-resource")
 func (r *Kubeconfig) SetupWebhookWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewWebhookManagedBy(mgr).
 		For(r).
-		WithDefaulter(&kubeconfigDefaulter{}).
-		WithValidator(&kubeconfigValidator{}).
+		WithDefaulter(&kubeconfigDefaulter{
+			client: mgr.GetClient(),
+		}).
+		WithValidator(&kubeconfigValidator{
+			client: mgr.GetClient(),
+		}).
 		Complete()
 }
 
@@ -84,7 +90,63 @@ func (r *kubeconfigDefaulter) Default(ctx context.Context, obj runtime.Object) e
 		}
 	}
 
-	kubeconfig.Status.Conditions = DefaultConditions(kubeconfig.Status.Conditions)
+	cl := kubeconfig.Status.Conditions
+	if meta.FindStatusCondition(cl, ConditionTypeCSRCreated) == nil {
+		cl = append(cl, metav1.Condition{
+			Type:               ConditionTypeCSRCreated,
+			Status:             metav1.ConditionUnknown,
+			LastTransitionTime: metav1.Now(),
+			Reason:             "Unknown",
+			Message:            "n/a",
+		})
+	}
+	if meta.FindStatusCondition(cl, ConditionTypeCSRApproved) == nil {
+		cl = append(cl, metav1.Condition{
+			Type:               ConditionTypeCSRApproved,
+			Status:             metav1.ConditionUnknown,
+			LastTransitionTime: metav1.Now(),
+			Reason:             "Unknown",
+			Message:            "n/a",
+		})
+	}
+	if meta.FindStatusCondition(cl, ConditionTypeUserSecretCreated) == nil {
+		cl = append(cl, metav1.Condition{
+			Type:               ConditionTypeUserSecretCreated,
+			Status:             metav1.ConditionUnknown,
+			LastTransitionTime: metav1.Now(),
+			Reason:             "Unknown",
+			Message:            "n/a",
+		})
+	}
+	if meta.FindStatusCondition(cl, ConditionTypeUserSecretFinished) == nil {
+		cl = append(cl, metav1.Condition{
+			Type:               ConditionTypeUserSecretFinished,
+			Status:             metav1.ConditionUnknown,
+			LastTransitionTime: metav1.Now(),
+			Reason:             "Unknown",
+			Message:            "n/a",
+		})
+	}
+	if meta.FindStatusCondition(cl, ConditionTypeKubeconfigSecretCreated) == nil {
+		cl = append(cl, metav1.Condition{
+			Type:               ConditionTypeKubeconfigSecretCreated,
+			Status:             metav1.ConditionUnknown,
+			LastTransitionTime: metav1.Now(),
+			Reason:             "Unknown",
+			Message:            "n/a",
+		})
+	}
+	if meta.FindStatusCondition(cl, ConditionTypeKubeconfigFinished) == nil {
+		cl = append(cl, metav1.Condition{
+			Type:               ConditionTypeKubeconfigFinished,
+			Status:             metav1.ConditionUnknown,
+			LastTransitionTime: metav1.Now(),
+			Reason:             "Unknown",
+			Message:            "n/a",
+		})
+	}
+
+	kubeconfig.Status.Conditions = cl
 
 	return nil
 }
@@ -130,6 +192,7 @@ func (r *kubeconfigValidator) ValidateUpdate(ctx context.Context, old runtime.Ob
 		allErrs = append(allErrs, field.Forbidden(field.NewPath("spec").Child("CSR"), ".spec.csr is immutable"))
 	}
 	if len(allErrs) == 0 {
+		// no errors during validation
 		return nil
 	}
 
