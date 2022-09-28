@@ -70,29 +70,33 @@ func getCertApprovalCondition(status *certificatesv1.CertificateSigningRequestSt
 	return
 }
 
-func createRSAKey() (priv *rsa.PrivateKey, key *bytes.Buffer) {
-	priv, _ = rsa.GenerateKey(rand.Reader, RSAKeyLength)
+func createRSAKey() (*rsa.PrivateKey, *bytes.Buffer) {
+	key := &bytes.Buffer{}
+	priv, _ := rsa.GenerateKey(rand.Reader, RSAKeyLength)
 	pem.Encode(key, &pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(priv)})
-	return
+	return priv, key
 }
 
-func createECDSAKey() (priv *ecdsa.PrivateKey, key *bytes.Buffer) {
-	priv, _ = ecdsa.GenerateKey(elliptic.P521(), rand.Reader)
+func createECDSAKey() (*ecdsa.PrivateKey, *bytes.Buffer) {
+	key := &bytes.Buffer{}
+	priv, _ := ecdsa.GenerateKey(elliptic.P521(), rand.Reader)
 	marshalledKey, _ := x509.MarshalECPrivateKey(priv)
 	pem.Encode(key, &pem.Block{Type: "EC PRIVATE KEY", Bytes: marshalledKey})
-	return
+	return priv, key
 }
 
-func createEd25519Key() (priv ed25519.PrivateKey, key *bytes.Buffer) {
-	_, priv, _ = ed25519.GenerateKey(rand.Reader)
+func createEd25519Key() (ed25519.PrivateKey, *bytes.Buffer) {
+	key := &bytes.Buffer{}
+	_, priv, _ := ed25519.GenerateKey(rand.Reader)
 	marshalledKey, _ := x509.MarshalPKCS8PrivateKey(priv)
 	pem.Encode(key, &pem.Block{Type: "PRIVATE KEY", Bytes: marshalledKey})
-	return
+	return priv, key
 }
 
 func (r *KubeconfigReconciler) createCSR(kubeconfig *kubeconfigv1alpha1.Kubeconfig) (key *bytes.Buffer, csr *bytes.Buffer, err error) {
 	var keyBytes crypto.Signer
 	var encoded *bytes.Buffer
+	csr = &bytes.Buffer{}
 	sigScheme := kubeconfig.Spec.CSR.SignatureAlgorithm
 	switch sigScheme {
 	case kubeconfigv1alpha1.SHA256WithRSA, kubeconfigv1alpha1.SHA384WithRSA, kubeconfigv1alpha1.SHA512WithRSA, kubeconfigv1alpha1.SHA256WithRSAPSS, kubeconfigv1alpha1.SHA384WithRSAPSS, kubeconfigv1alpha1.SHA512WithRSAPSS:
@@ -124,26 +128,9 @@ func (r *KubeconfigReconciler) createCSR(kubeconfig *kubeconfigv1alpha1.Kubeconf
 
 	csrBytes, err := x509.CreateCertificateRequest(rand.Reader, &template, keyBytes)
 	if err != nil {
-		return nil, nil, CertificateSigningRequestCreateError
+		return nil, nil, ErrCertificateSigningRequestCreate
 	}
 
 	pem.Encode(csr, &pem.Block{Type: "CERTIFICATE REQUEST", Bytes: csrBytes})
 	return encoded, csr, nil
 }
-
-// func (r *KubeconfigReconciler) CsrIsCreated(status *kubeconfigv1alpha1.KubeconfigStatus) metav1.ConditionStatus {
-// 	return r.hasStatus(status, kubeconfigv1alpha1.ConditionCSRCreated.Type)
-// }
-
-// func (r *KubeconfigReconciler) CsrIsApproved(status *kubeconfigv1alpha1.KubeconfigStatus) metav1.ConditionStatus {
-// 	return r.hasStatus(status, kubeconfigv1alpha1.ConditionTypeCSRApproved)
-// }
-
-// func (r *KubeconfigReconciler) hasStatus(status *kubeconfigv1alpha1.KubeconfigStatus, t string) metav1.ConditionStatus {
-// 	for _, c := range status.Conditions {
-// 		if c.Type == t {
-// 			return c.Status
-// 		}
-// 	}
-// 	return metav1.ConditionUnknown
-// }

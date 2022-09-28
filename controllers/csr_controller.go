@@ -25,6 +25,7 @@ import (
 	errs "errors"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/klog/v2"
 
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -63,7 +64,6 @@ const (
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.12.2/pkg/reconcile
 func (r *CertificateSigningRequestReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	l := log.FromContext(ctx)
 
 	csr := &certificatesv1.CertificateSigningRequest{}
 	err := r.Get(ctx, req.NamespacedName, csr)
@@ -76,7 +76,7 @@ func (r *CertificateSigningRequestReconciler) Reconcile(ctx context.Context, req
 	}
 
 	if !isKubeconfigCSR(csr) {
-		l.V(5).Info("non-kubeconfig CSR, skipping reconciliation")
+		klog.V(5).Info("non-kubeconfig CSR, skipping reconciliation")
 		return ctrl.Result{}, nil
 	}
 

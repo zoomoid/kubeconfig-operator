@@ -26,9 +26,9 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/klog/v2"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	kubeconfigv1alpha1 "github.com/zoomoid/kubeconfig-operator/api/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
@@ -43,7 +43,8 @@ type KubeconfigReconciler struct {
 }
 
 var (
-	CertificateSigningRequestCreateError error = apierrors.NewInternalError(errors.New("failed to create CSR"))
+	ErrCertificateSigningRequestCreate error = apierrors.NewInternalError(errors.New("failed to create CSR"))
+	ErrCertificateSigningRequestDenied error = errors.New("csr was denied")
 )
 
 // +kubebuilder:rbac:groups=kubeconfig.k8s.zoomoid.dev,resources=kubeconfigs,verbs=get;list;watch;create;update;patch;delete
@@ -53,22 +54,12 @@ var (
 // +kubebuilder:rbac:groups=core,resources=configmaps,verbs=get;list;watch
 // +kubebuilder:rbac:groups=certificates.k8s.io,resources=certificatesigningrequests,verbs=get;list;watch;create;update;patch;delete
 
-// Reconcile is part of the main kubernetes reconciliation loop which aims to
-// move the current state of the cluster closer to the desired state.
-// TODO(user): Modify the Reconcile function to compare the state specified by
-// the Kubeconfig object against the actual cluster state, and then
-// perform operations to make the cluster state reflect the state specified by
-// the user.
-//
-// For more details, check Reconcile and its Result here:
-// - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.12.2/pkg/reconcile
 func (r *KubeconfigReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	l := log.FromContext(ctx)
-
 	kubeconfig := &kubeconfigv1alpha1.Kubeconfig{}
 	err := r.Get(ctx, req.NamespacedName, kubeconfig)
 
 	if err != nil {
+		klog.V(1).ErrorS(err, "cannot get kubeconfig object from api server")
 		if apierrors.IsNotFound(err) {
 			// this is a delete request, kubernetes will garbage collect all other objects
 			// with ownership from this controller
@@ -77,11 +68,12 @@ func (r *KubeconfigReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		return ctrl.Result{}, err
 	}
 
-	l.V(5).Info("Reconciling kubeconfig %s/%s", req.Namespace, req.Name)
+	klog.Info("Reconciling kubeconfig", "namespace", req.Namespace, "name", req.Name)
 
 	terminalApprovalStatus := meta.IsStatusConditionTrue(kubeconfig.Status.Conditions, kubeconfigv1alpha1.ConditionTypeCSRApproved) || meta.IsStatusConditionFalse(kubeconfig.Status.Conditions, kubeconfigv1alpha1.ConditionTypeCSRApproved)
 
 	if terminalApprovalStatus {
+		klog.Info("CSR is in a terminal state", "namespace", req.Namespace, "name", req.Name)
 		// CSR status condition updates did not include a terminal condition yet, get the CSR object from the API
 		csr := &certificatesv1.CertificateSigningRequest{}
 		err = r.Get(ctx, types.NamespacedName{Namespace: kubeconfig.Namespace, Name: kubeconfig.Name}, csr)
@@ -90,6 +82,7 @@ func (r *KubeconfigReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 			// error during CSR retrival, either not yet created or decayed/deleted
 			res, err := r.csrNotFound(ctx, kubeconfig, err)
 			_ = r.Update(ctx, kubeconfig)
+
 			return res, err
 		} else if err != nil {
 			return ctrl.Result{Requeue: true}, err
@@ -99,6 +92,7 @@ func (r *KubeconfigReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		// the CSR
 		csrApproved, csrDenied, csrFailed := getCertApprovalCondition(&csr.Status)
 		if !csrApproved && !csrDenied && !csrFailed {
+			klog.Info("Ejecting, CSR has not yet reached a terminal state yet", "namespace", req.Namespace, "name", req.Name)
 			// not reached a terminal condition on the CSR yet, skip further reconciliation
 			return ctrl.Result{}, nil
 		}
@@ -116,6 +110,8 @@ func (r *KubeconfigReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 			})
 
 			// Update kubeconfig and exit early
+			klog.ErrorS(ErrCertificateSigningRequestDenied, "Exiting early, CSR was denied", "namespace", req.Namespace, "name", req.Name)
+
 			// TODO: check if the secret exists before updating
 			err = r.Update(ctx, kubeconfig)
 			return ctrl.Result{}, err
@@ -142,6 +138,7 @@ func (r *KubeconfigReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		})
 
 		// exit early
+		klog.ErrorS(err, "Exiting early, failed to find or create kubeconfig secret", "namespace", req.Namespace, "name", req.Name)
 		err = r.Update(ctx, kubeconfig)
 		return ctrl.Result{}, err
 	}
@@ -150,6 +147,7 @@ func (r *KubeconfigReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	} else {
 		err = r.Client.Update(ctx, kubeConfigSecret)
 	}
+
 	if err != nil {
 		meta.SetStatusCondition(&kubeconfig.Status.Conditions, metav1.Condition{
 			Type:               kubeconfigv1alpha1.ConditionTypeKubeconfigSecretCreated,
@@ -160,24 +158,31 @@ func (r *KubeconfigReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		})
 
 		// Update kubeconfig and exit early
+		klog.ErrorS(err, "Exiting early, failed to update or create kubeconfig secret", "namespace", req.Namespace, "name", req.Name)
 		err = r.Update(ctx, kubeconfig)
 		return ctrl.Result{}, err
 	}
 
 	if err != nil {
-		l.Error(err, "failed to create kubeconfig secret object at API server, requeueing")
+		klog.ErrorS(err, "failed to create kubeconfig secret object at API server, requeueing")
 		return ctrl.Result{Requeue: true}, err
 	}
+
+	klog.Info("Created/Updated kubeconfig secret", "namespace", req.Namespace, "name", req.Name)
 
 	crb := r.clusterRoleBinding(kubeconfig)
 
 	err = r.Create(ctx, crb)
 	if err != nil {
-		l.Error(err, "failed to create clusterrolebinding object at API server, requeueing")
+		klog.ErrorS(err, "failed to create clusterrolebinding object at API server, requeueing")
 		return ctrl.Result{Requeue: true}, err
 	}
 
+	klog.Info("Created clusterrolebinding for kubeconfig user", "namespace", req.Namespace, "name", req.Name)
+
 	r.Update(ctx, kubeconfig)
+
+	klog.Info("Finished reconciliation of kubeconfig", "namespace", req.Namespace, "name", req.Name)
 
 	return ctrl.Result{}, nil
 }
@@ -264,8 +269,6 @@ func (r *KubeconfigReconciler) createKubeconfig(ctx context.Context, kubeconfig 
 }
 
 func (r *KubeconfigReconciler) csrNotFound(ctx context.Context, kubeconfig *kubeconfigv1alpha1.Kubeconfig, err error) (ctrl.Result, error) {
-	l := log.FromContext(ctx)
-
 	if apierrors.IsNotFound(err) {
 		// CSR for kubeconfig does not exist yet or has decayed
 		created := meta.IsStatusConditionTrue(kubeconfig.Status.Conditions, kubeconfigv1alpha1.ConditionTypeCSRCreated)
@@ -280,7 +283,7 @@ func (r *KubeconfigReconciler) csrNotFound(ctx context.Context, kubeconfig *kube
 
 			if !approved {
 				err = fmt.Errorf("CSR approval for %s/%s failed terminally", kubeconfig.Namespace, kubeconfig.Name)
-				l.V(0).Error(err, "CSR is gone but no approval was reported, marking kubeconfig condition as failed")
+				klog.V(0).ErrorS(err, "CSR is gone but no approval was reported, marking kubeconfig condition as failed")
 
 				meta.SetStatusCondition(&kubeconfig.Status.Conditions, metav1.Condition{
 					Type:               kubeconfigv1alpha1.ConditionTypeCSRApproved,
@@ -293,6 +296,8 @@ func (r *KubeconfigReconciler) csrNotFound(ctx context.Context, kubeconfig *kube
 			}
 		} else {
 			// create a fresh CSR
+			klog.Info("Creating a fresh CSR for kubeconfig", "namespace", kubeconfig.Namespace, "name", kubeconfig.Name)
+
 			keyBuffer, csrBuffer, err := r.createCSR(kubeconfig)
 			if err != nil {
 				// append failure condition to Kubeconfig object
@@ -303,6 +308,7 @@ func (r *KubeconfigReconciler) csrNotFound(ctx context.Context, kubeconfig *kube
 					Status:             metav1.ConditionFalse,
 					LastTransitionTime: metav1.Now(),
 				})
+				klog.Error(err, "Failed to create CSR for kubeconfig", "namespace", kubeconfig.Namespace, "name", kubeconfig.Name)
 
 				return ctrl.Result{}, err
 			}
@@ -328,8 +334,11 @@ func (r *KubeconfigReconciler) csrNotFound(ctx context.Context, kubeconfig *kube
 			LastTransitionTime: metav1.Now(),
 		})
 
+		klog.Info("Exiting early, created CSR, waiting for next reconciliation", "namespace", kubeconfig.Namespace, "name", kubeconfig.Name)
 		return ctrl.Result{}, err
 	} else {
+
+		klog.Error(err, "Error is not IsNotFound, skipping", "namespace", kubeconfig.Namespace, "name", kubeconfig.Name)
 		return ctrl.Result{}, err
 	}
 
