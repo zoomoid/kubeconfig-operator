@@ -20,19 +20,19 @@ import (
 	"context"
 	"crypto/x509"
 	"encoding/pem"
-	"fmt"
+	"time"
 
 	errs "errors"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	clientset "k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/tools/record"
 	"k8s.io/klog/v2"
 
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	certificatesv1 "k8s.io/api/certificates/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -41,13 +41,15 @@ import (
 // CertificateSigningRequestReconciler reconciles a CSR object
 type CertificateSigningRequestReconciler struct {
 	client.Client
-	Scheme *runtime.Scheme
+	Scheme    *runtime.Scheme
+	Recorder  record.EventRecorder
+	ClientSet *clientset.Clientset
 }
 
 const (
-	CSRAutoApproveAnnotationKey          string = "kubeconfig-operator.k8s.zoomoid.dev/auto-approve"
+	CSRAutoApproveAnnotationKey          string = "kubeconfig.k8s.zoomoid.dev/auto-approve"
 	x509TypeCerticateRequest             string = "CERTIFICATE REQUEST"
-	KubeconfigOperatorAPIVersionV1Alpha1 string = "kubeconfig-operator.k8s.zoomoid.dev/v1alpha1"
+	KubeconfigOperatorAPIVersionV1Alpha1 string = "kubeconfig.k8s.zoomoid.dev/v1alpha1"
 )
 
 //+kubebuilder:rbac:groups=certificates.k8s.io,resources=certificatesigningrequests,verbs=get;watch;list
@@ -75,20 +77,25 @@ func (r *CertificateSigningRequestReconciler) Reconcile(ctx context.Context, req
 		return ctrl.Result{}, err
 	}
 
-	if !isKubeconfigCSR(csr) {
-		klog.V(5).Info("non-kubeconfig CSR, skipping reconciliation")
+	klog.InfoS("Reconciling CSR", "name", req.Name)
+
+	if !isKubeconfigV1Alpha1CSR(csr) {
+		klog.V(0).Info("non-kubeconfig CSR, skipping reconciliation")
 		return ctrl.Result{}, nil
 	}
 
-	approved, denied, failed := getCertApprovalCondition(&csr.Status)
+	approved, denied, failed := getCertApprovalCondition(csr.Status.Conditions)
 	isPending := (!approved && !denied && !failed)
-	if hasAutoApproveAnnotation(csr) && isPending {
-		_ = r.ApproveCSR(ctx, csr)
+	klog.V(5).InfoS("parsed CSR status", "name", req.Name, "approved", approved, "denied", denied, "failed", failed)
 
-		err = r.Update(ctx, csr)
-		// The update call to the CSRs status will trigger the next reconciliation, at which point
-		// isPending will be false, thus this branch will be skipped
-		return ctrl.Result{}, err
+	if hasAutoApproveAnnotation(csr) && isPending {
+		err = r.ApproveCSR(ctx, csr)
+		if err != nil {
+			r.Recorder.Eventf(csr, "Warning", "Failed", "Failed to approve CSR, %v", err)
+			_ = r.Status().Update(ctx, csr)
+			return ctrl.Result{}, err
+		}
+		return ctrl.Result{}, nil
 	}
 
 	if !approved {
@@ -97,65 +104,34 @@ func (r *CertificateSigningRequestReconciler) Reconcile(ctx context.Context, req
 		return ctrl.Result{}, nil
 	}
 
-	err = r.UpdateTrackingSecret(ctx, csr)
-
-	// There's nothing else to be done for this CSR, upstream kubeconfig reconciler will do the rest
-	// The CSR object will decay after 24h after approval, after which only a trace condition will remain in
-	// the kubeconfig CR
-	return ctrl.Result{}, err
-}
-
-func (r *CertificateSigningRequestReconciler) UpdateTrackingSecret(ctx context.Context, csr *certificatesv1.CertificateSigningRequest) error {
-	l := log.FromContext(ctx)
-
-	// CSR has been approved, extract signed client certificate
-	clientCertificate := csr.Status.Certificate
-
-	// Derive the secret name
-	secretName := fmt.Sprintf("%s-%s", csr.Name, "client-key")
-
-	clientTLSSecret := &corev1.Secret{}
-	err := r.Get(ctx, types.NamespacedName{Name: secretName, Namespace: csr.Namespace}, clientTLSSecret)
-	if err != nil {
-		if errors.IsNotFound(err) {
-			l.Error(err, "Could not find TLS secret for storing client-key and client-certificate after approval of CSR", "secretName", secretName, "namespace", csr.Namespace)
-		}
-		return err
-	}
-
-	clientTLSSecret.Data["tls.crt"] = clientCertificate
-
-	err = r.Update(ctx, clientTLSSecret)
-	return err
+	return ctrl.Result{}, nil
 }
 
 func (r *CertificateSigningRequestReconciler) ApproveCSR(ctx context.Context, csr *certificatesv1.CertificateSigningRequest) error {
-	l := log.FromContext(ctx)
 	_, err := parseCSR(csr.Spec.Request)
-
 	if err != nil {
-		l.V(0).Error(err, "Failed to parse x509 CSR from request field")
-		csr.Status.Conditions = append(csr.Status.Conditions, certificatesv1.CertificateSigningRequestCondition{
-			Type:               certificatesv1.CertificateFailed,
-			Status:             corev1.ConditionTrue,
-			Reason:             "CSR failed due to malformed object",
-			Message:            err.Error(),
-			LastUpdateTime:     metav1.Now(),
-			LastTransitionTime: metav1.Time{},
+		klog.V(0).ErrorS(err, "Failed to parse x509 CSR from request field")
+		setStatusCondition(&csr.Status.Conditions, certificatesv1.CertificateSigningRequestCondition{
+			Type:    certificatesv1.CertificateFailed,
+			Status:  corev1.ConditionTrue,
+			Reason:  "Failed",
+			Message: err.Error(),
 		})
-
 		return err
 	}
 
-	csr.Status.Conditions = append(csr.Status.Conditions, certificatesv1.CertificateSigningRequestCondition{
-		Type:               certificatesv1.CertificateApproved,
-		Status:             corev1.ConditionTrue,
-		Reason:             "CSR was approved",
-		Message:            "CSR automatically approved by csr-controller",
-		LastUpdateTime:     metav1.Now(),
-		LastTransitionTime: metav1.Time{},
+	setStatusCondition(&csr.Status.Conditions, certificatesv1.CertificateSigningRequestCondition{
+		Type:    certificatesv1.CertificateApproved,
+		Status:  corev1.ConditionTrue,
+		Reason:  "KubeconfigControllerApprove",
+		Message: "The CSR was auto-approved by the kubeconfig operator",
 	})
 
+	csr, err = r.ClientSet.CertificatesV1().CertificateSigningRequests().UpdateApproval(ctx, csr.Name, csr, metav1.UpdateOptions{})
+	if err != nil {
+		return err
+	}
+	klog.InfoS("Approved CSR", "name", csr.Name)
 	return nil
 }
 
@@ -165,12 +141,20 @@ func (r *CertificateSigningRequestReconciler) SetupWithManager(mgr ctrl.Manager)
 		Complete(r)
 }
 
+// hasAutoApproveAnnotation checks for an annotation that marks the CSR as auto-approvable by
+// the controller. If it is not set, the approval needs to be performed manually
 func hasAutoApproveAnnotation(csr *certificatesv1.CertificateSigningRequest) bool {
 	v, ok := csr.Annotations[CSRAutoApproveAnnotationKey]
-	return ok && v == "true"
+	if ok && v == "true" {
+		klog.V(5).InfoS("CSR has auto-approve annotation", "name", csr.Name)
+		return true
+	}
+	klog.V(5).InfoS("CSR does not have auto-approve annotation", "name", csr.Name)
+	return false
 }
 
-func isKubeconfigCSR(csr *certificatesv1.CertificateSigningRequest) bool {
+// isKubeconfigV1Alpha1CSR checks if the owner of the csr is a kubeconfig.kubeconfig-operator.k8s.zoomoid.dev/v1alpha1
+func isKubeconfigV1Alpha1CSR(csr *certificatesv1.CertificateSigningRequest) bool {
 	for _, o := range csr.OwnerReferences {
 		if o.Kind == "Kubeconfig" && o.APIVersion == KubeconfigOperatorAPIVersionV1Alpha1 {
 			return true
@@ -179,18 +163,52 @@ func isKubeconfigCSR(csr *certificatesv1.CertificateSigningRequest) bool {
 	return false
 }
 
+// parseCSR unwraps the base64 encoded PEM block
 func parseCSR(pemBytes []byte) (*x509.CertificateRequest, error) {
 	block, _ := pem.Decode(pemBytes)
-
 	if block == nil || block.Type != x509TypeCerticateRequest {
 		return nil, errs.New("PEM block type must be CERTIFICATE REQUEST")
 	}
 
 	csr, err := x509.ParseCertificateRequest(block.Bytes)
-
 	if err != nil {
 		return nil, err
 	}
-
 	return csr, nil
+}
+
+func setStatusCondition(conditions *[]certificatesv1.CertificateSigningRequestCondition, newCondition certificatesv1.CertificateSigningRequestCondition) {
+	if conditions == nil {
+		return
+	}
+	existingCondition := findStatusCondition(*conditions, newCondition.Type)
+	if existingCondition == nil {
+		if newCondition.LastTransitionTime.IsZero() {
+			newCondition.LastTransitionTime = metav1.NewTime(time.Now())
+		}
+		*conditions = append(*conditions, newCondition)
+		return
+	}
+
+	if existingCondition.Status != newCondition.Status {
+		existingCondition.Status = newCondition.Status
+		if !newCondition.LastTransitionTime.IsZero() {
+			existingCondition.LastTransitionTime = newCondition.LastTransitionTime
+		} else {
+			existingCondition.LastTransitionTime = metav1.NewTime(time.Now())
+		}
+	}
+	existingCondition.Reason = newCondition.Reason
+	existingCondition.Message = newCondition.Message
+}
+
+// FindStatusCondition finds the conditionType in conditions.
+func findStatusCondition(conditions []certificatesv1.CertificateSigningRequestCondition, conditionType certificatesv1.RequestConditionType) *certificatesv1.CertificateSigningRequestCondition {
+	for i := range conditions {
+		if conditions[i].Type == conditionType {
+			return &conditions[i]
+		}
+	}
+
+	return nil
 }

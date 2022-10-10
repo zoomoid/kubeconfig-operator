@@ -1,3 +1,19 @@
+/*
+Copyright 2022 zoomoid.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package controllers
 
 import (
@@ -15,10 +31,18 @@ import (
 
 	kubeconfigv1alpha1 "github.com/zoomoid/kubeconfig-operator/api/v1alpha1"
 	certificatesv1 "k8s.io/api/certificates/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 const (
 	RSAKeyLength int = 4096
+)
+
+var (
+	ErrCertificateSigningRequestCreate error = apierrors.NewInternalError(errors.New("failed to create CSR"))
+	ErrCertificateSigningRequestDenied error = errors.New("csr was denied")
 )
 
 func labelsForSubresources(kubeconfig *kubeconfigv1alpha1.Kubeconfig) map[string]string {
@@ -55,8 +79,8 @@ func parseSignatureAlgorithm(signatureAlgorithm kubeconfigv1alpha1.SignatureAlgo
 	}
 }
 
-func getCertApprovalCondition(status *certificatesv1.CertificateSigningRequestStatus) (approved bool, denied bool, failed bool) {
-	for _, c := range status.Conditions {
+func getCertApprovalCondition(conditions []certificatesv1.CertificateSigningRequestCondition) (approved bool, denied bool, failed bool) {
+	for _, c := range conditions {
 		if c.Type == certificatesv1.CertificateApproved {
 			approved = true
 		}
@@ -93,6 +117,8 @@ func createEd25519Key() (ed25519.PrivateKey, *bytes.Buffer) {
 	return priv, key
 }
 
+// createCSR creates a new PEM certificate signing request and a private key depending on what signature algorithm the kubeconfig resource specifieds
+// it returns both as a buffer, or nil, and an error
 func (r *KubeconfigReconciler) createCSR(kubeconfig *kubeconfigv1alpha1.Kubeconfig) (key *bytes.Buffer, csr *bytes.Buffer, err error) {
 	var keyBytes crypto.Signer
 	var encoded *bytes.Buffer
@@ -133,4 +159,16 @@ func (r *KubeconfigReconciler) createCSR(kubeconfig *kubeconfigv1alpha1.Kubeconf
 
 	pem.Encode(csr, &pem.Block{Type: "CERTIFICATE REQUEST", Bytes: csrBytes})
 	return encoded, csr, nil
+}
+
+// isInTerminalCondition returns true if any of the relevant final conditions have reached a terminal state
+// This is used to determine if a resource should be reconciled or not
+func isInTerminalCondition(kubeconfig *kubeconfigv1alpha1.Kubeconfig) bool {
+	// c := meta.FindStatusCondition(kubeconfig.Status.Conditions, kubeconfigv1alpha1.ConditionTypeCSRApproved)
+	// u := meta.FindStatusCondition(kubeconfig.Status.Conditions, kubeconfigv1alpha1.ConditionTypeUserSecretFinished)
+	f := meta.FindStatusCondition(kubeconfig.Status.Conditions, kubeconfigv1alpha1.ConditionTypeKubeconfigFinished)
+	if f == nil {
+		return false
+	}
+	return f.Status != metav1.ConditionUnknown
 }

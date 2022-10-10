@@ -69,7 +69,9 @@ func (a *kubeconfigDefaulter) InjectClient(c client.Client) error {
 func (r *kubeconfigDefaulter) Default(ctx context.Context, obj runtime.Object) error {
 	kubeconfig, _ := obj.(*Kubeconfig)
 
-	kubeconfiglog.Info("default", "name", kubeconfig.Name)
+	if kubeconfig.Spec.Cluster == nil {
+		kubeconfig.Spec.Cluster = &Cluster{}
+	}
 
 	if kubeconfig.Spec.Cluster.Server == "" {
 		ep, err := utils.ClusterEndpoint(ctx, r.client)
@@ -79,6 +81,10 @@ func (r *kubeconfigDefaulter) Default(ctx context.Context, obj runtime.Object) e
 			ep = "https://localhost:6443"
 		}
 		kubeconfig.Spec.Cluster.Server = ep
+	}
+
+	if kubeconfig.Spec.Cluster.Name == "" {
+		kubeconfig.Spec.Cluster.Name = "kubernetes"
 	}
 
 	// Default the ClusterRole ref if not specified
@@ -151,8 +157,6 @@ func (r *kubeconfigDefaulter) Default(ctx context.Context, obj runtime.Object) e
 	return nil
 }
 
-// TODO(user): change verbs to "verbs=create;update;delete" if you want to enable deletion validation.
-
 //+kubebuilder:webhook:path=/validate-kubeconfig-k8s-zoomoid-dev-v1alpha1-kubeconfig,mutating=false,failurePolicy=fail,sideEffects=None,groups=kubeconfig.k8s.zoomoid.dev,resources=kubeconfigs,verbs=create;update,versions=v1alpha1,name=vkubeconfig.kb.io,admissionReviewVersions=v1
 
 type kubeconfigValidator struct {
@@ -171,8 +175,8 @@ func (a *kubeconfigValidator) InjectClient(c client.Client) error {
 
 // ValidateCreate implements webhook.Validator so a webhook will be registered for the type
 func (r *kubeconfigValidator) ValidateCreate(ctx context.Context, obj runtime.Object) error {
-	kubeconfig, _ := obj.(*Kubeconfig)
-	kubeconfiglog.Info("validate create", "name", kubeconfig.Name)
+	// kubeconfig, _ := obj.(*Kubeconfig)
+	// kubeconfiglog.Info("validate create", "name", kubeconfig.Name)
 	return nil
 }
 
@@ -183,7 +187,7 @@ func (r *kubeconfigValidator) ValidateUpdate(ctx context.Context, old runtime.Ob
 	oldKubeconfig, _ := old.(*Kubeconfig)
 	newKubeconfig, _ := new.(*Kubeconfig)
 
-	kubeconfiglog.Info("validate update", "name", oldKubeconfig.Name)
+	// kubeconfiglog.Info("validate update", "name", oldKubeconfig.Name)
 	var allErrs field.ErrorList
 	if !reflect.DeepEqual(oldKubeconfig.Spec.ExistingCSR, newKubeconfig.Spec.ExistingCSR) {
 		allErrs = append(allErrs, field.Forbidden(field.NewPath("spec").Child("existingCSR"), ".spec.existingCSR is immutable"))
@@ -204,7 +208,7 @@ func (r *kubeconfigValidator) ValidateUpdate(ctx context.Context, old runtime.Ob
 
 // ValidateDelete implements webhook.Validator so a webhook will be registered for the type
 func (r *kubeconfigValidator) ValidateDelete(ctx context.Context, obj runtime.Object) error {
-	kubeconfig, _ := obj.(*Kubeconfig)
-	kubeconfiglog.Info("validate delete", "name", kubeconfig.Name)
+	// kubeconfig, _ := obj.(*Kubeconfig)
+	// kubeconfiglog.Info("validate delete", "name", kubeconfig.Name)
 	return nil
 }

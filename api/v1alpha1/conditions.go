@@ -1,69 +1,32 @@
+/*
+Copyright 2022 zoomoid.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package v1alpha1
 
 const (
-	ConditionTypeCSRCreated              string = "CSRCreated"
-	ConditionTypeCSRApproved             string = "CSRApproved"
-	ConditionTypeUserSecretCreated       string = "UserSecretCreated"
-	ConditionTypeUserSecretFinished      string = "UserSecretFinished"
+	// ConditionTypeCSRCreated is the condition type used to indicate the status of CSR creation
+	ConditionTypeCSRCreated string = "CSRCreated"
+	// ConditionTypeCSRApproved indicates the status of the approval of a CSR
+	ConditionTypeCSRApproved string = "CSRApproved"
+	// ConditionTypeUserSecretCreated indicates the creation status of the user secret object
+	ConditionTypeUserSecretCreated string = "UserSecretCreated"
+	// ConditionTypeUserSecretFinished indicates if the user secret has all the required data fields
+	ConditionTypeUserSecretFinished string = "UserSecretFinished"
+	// ConditionTypeKubeconfigSecretCreated indicates the creation status of the kubeconfig secret
 	ConditionTypeKubeconfigSecretCreated string = "KubeconfigSecretCreated"
-	ConditionTypeKubeconfigFinished      string = "KubeconfigFinished"
+	// ConditionTypeKubeconfigFinished indicates if the kubeconfig is complete
+	ConditionTypeKubeconfigFinished string = "KubeconfigFinished"
 )
-
-// // defaultConditions adds fresh conditions if their type does not yet exist
-// func defaultConditions(cl []metav1.Condition) []metav1.Condition {
-// 	if meta.FindStatusCondition(cl, ConditionTypeCSRCreated) == nil {
-// 		cl = append(cl, metav1.Condition{
-// 			Type:               ConditionTypeCSRCreated,
-// 			Status:             metav1.ConditionUnknown,
-// 			LastTransitionTime: metav1.Now(),
-// 			Reason:             "n/a",
-// 			Message:            "n/a",
-// 		})
-// 	}
-// 	if meta.FindStatusCondition(cl, ConditionTypeCSRApproved) == nil {
-// 		cl = append(cl, metav1.Condition{
-// 			Type:               ConditionTypeCSRApproved,
-// 			Status:             metav1.ConditionUnknown,
-// 			LastTransitionTime: metav1.Now(),
-// 			Reason:             "n/a",
-// 			Message:            "n/a",
-// 		})
-// 	}
-// 	if meta.FindStatusCondition(cl, ConditionTypeUserSecretCreated) == nil {
-// 		cl = append(cl, metav1.Condition{
-// 			Type:               ConditionTypeUserSecretCreated,
-// 			Status:             metav1.ConditionUnknown,
-// 			LastTransitionTime: metav1.Now(),
-// 			Reason:             "n/a",
-// 			Message:            "n/a",
-// 		})
-// 	}
-// 	if meta.FindStatusCondition(cl, ConditionTypeUserSecretFinished) == nil {
-// 		cl = append(cl, metav1.Condition{
-// 			Type:               ConditionTypeUserSecretFinished,
-// 			Status:             metav1.ConditionUnknown,
-// 			LastTransitionTime: metav1.Now(),
-// 			Reason:             "n/a",
-// 			Message:            "n/a",
-// 		})
-// 	}
-// 	if meta.FindStatusCondition(cl, ConditionTypeKubeconfigSecretCreated) == nil {
-// 		cl = append(cl, metav1.Condition{
-// 			Type:               ConditionTypeKubeconfigSecretCreated,
-// 			Status:             metav1.ConditionUnknown,
-// 			LastTransitionTime: metav1.Now(),
-// 			Reason:             "n/a",
-// 			Message:            "n/a",
-// 		})
-// 	}
-// 	if meta.FindStatusCondition(cl, ConditionTypeKubeconfigFinished) == nil {
-// 		cl = append(cl, metav1.Condition{
-// 			Type:               ConditionTypeKubeconfigFinished,
-// 			Status:             metav1.ConditionUnknown,
-// 			LastTransitionTime: metav1.Now(),
-// 			Reason:             "n/a",
-// 			Message:            "n/a",
-// 		})
-// 	}
-// 	return cl
-// }

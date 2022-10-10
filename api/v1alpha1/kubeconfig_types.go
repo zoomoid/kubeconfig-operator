@@ -21,27 +21,31 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
-// NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
-
 // KubeconfigSpec defines the desired state of Kubeconfig
 type KubeconfigSpec struct {
-	// Important: Run "make" to regenerate code after modifying this file
+	// Username is the name associated with the future owner of the kubeconfig. The certificate is bound to this name as Common Name,
+	// and the name is used for subresources as well
 	Username string `json:"username,omitempty"`
+
+	// When wanting to use an existing CSR, add a reference to the secret containing private key and csr here
+	// this field is immutable after creation
 	// +optional
-	// this field is also immutable
-	ExistingCSR SecretRef `json:"existingCSR,omitempty"`
-	// +optional
+	ExistingCSR *SecretRef `json:"existingCSR,omitempty"`
+
 	// to not cause cascading updates to downstream CSRs and secrets,
 	// this field is immutable, which is enforced by the parallel validating webhook server
-	AutoApproveCSR bool `json:"automaticApproval"`
-
 	// +optional
-	CSR CertificateSigningRequest `json:"csr,omitempty"`
+	AutoApproveCSR bool `json:"automaticApproval,omitempty"`
 
+	// CSR contains the parameters for generating the private key and CSR for the kube-api-server to sign
 	// +optional
-	Cluster Cluster `json:"cluster"`
+	CSR *CertificateSigningRequest `json:"csr,omitempty"`
 
+	// Cluster contains information to template into the final kubeconfig, like names and endpoints
+	// +optional
+	Cluster *Cluster `json:"cluster"`
+
+	// RoleRef contains the role references that the created cluster role binding links against
 	// +optional
 	RoleRef *rbacv1.RoleRef `json:"roleRef,omitempty"`
 }
@@ -51,8 +55,12 @@ type SecretRef struct {
 	Namespace string `json:"namespace"`
 }
 
+type CsrRef struct {
+	Name string `json:"name"`
+}
+
 type Cluster struct {
-	// +kubebuilder:default="kubernetes"
+	// +kubebuilder:default=kubernetes
 	Name   string `json:"name"`
 	Server string `json:"server"`
 }
@@ -63,46 +71,58 @@ type CertificateSigningRequest struct {
 	AdditionalFields   CertificateSigningRequestAdditionalFields `json:"additionalFields,omitempty"`
 }
 
+// CertificateSigningRequestAdditionalFields contains the name fields of an X.509 certificate
+// Excludes the ExtraNames field because we cannot properly serialize it currently
 type CertificateSigningRequestAdditionalFields struct {
 	// CommonName is omitted because that is the username
 	// +kubebuilder:default={}
 	Country []string `json:"country,omitempty"`
 
+	// Province of the certificate requestor
 	// +kubebuilder:default={}
 	Province []string `json:"province,omitempty"`
 
+	// Locality of the certificate requestor
 	// +kubebuilder:default={}
 	Locality []string `json:"locality,omitempty"`
 
-	// +kubebuilder:default={"system:masters"}
+	// Organization of the certificate requestor
+	// +kubebuilder:default={}
 	Organization []string `json:"organization,omitempty"`
 
+	// OrganizationalUnit of the certificate requestor
 	// +kubebuilder:default={}
 	OrganizationalUnit []string `json:"organizationalUnit,omitempty"`
 
+	// TODO(feat): re-add this field in another format and add a custom marshaller in the certificate signing request generation
 	// ExtraNames field is excluded because this field cannot easily be serialized by controller-gen
 	// ExtraNames         []pkix.AttributeTypeAndValue `json:"extraNames,omitempty"`
 }
 
 // KubeconfigStatus defines the observed state of Kubeconfig
 type KubeconfigStatus struct {
+	// Secrets is a struct containing references to the secrets created by the controller
 	Secrets CreatedSecrets `json:"secrets,omitempty"`
 
+	// Csr is a name reference to the CSR created by the controller
+	Csr CsrRef `json:"csr,omitempty"`
+
+	// Condititions are metav1 conditions that track the state of the kubeconfig
 	// +listType=map
 	// +listMapKey=type
-	// +optional
-	Conditions []metav1.Condition `json:"condition,omitempty"`
+	Conditions []metav1.Condition `json:"condition"`
 
+	// Kubeconfig contains the final kubeconfig for the user as a formatted string
 	// +optional
 	Kubeconfig string `json:"kubeconfig,omitempty"`
 
-	// +kubebuilder:default="unknown"
+	// +kubebuilder:default="Unknown"
 	Phase string `json:"phase,omitempty"`
 }
 
 type CreatedSecrets struct {
 	Kubeconfig SecretRef `json:"kubeconfigRef,omitempty"`
-	ClientTLS  SecretRef `json:"clientKeyRef,omitempty"`
+	UserSecret SecretRef `json:"userSecretRef,omitempty"`
 }
 
 type SignatureAlgorithm string
@@ -123,7 +143,8 @@ const (
 )
 
 // +kubebuilder:object:root=true
-/* // +kubebuilder:subresource:status */
+// +kubebuilder:resource:scope=Cluster
+// +kubebuilder:subresource:status
 // +kubebuilder:printcolumn:name="For",type=string,JSONPath=`.spec.username`
 // +kubebuilder:printcolumn:name="Phase",type=string,JSONPath=`.status.phase`
 
@@ -132,8 +153,7 @@ type Kubeconfig struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec KubeconfigSpec `json:"spec"`
-	// +optional
+	Spec   KubeconfigSpec   `json:"spec"`
 	Status KubeconfigStatus `json:"status,omitempty"`
 }
 
