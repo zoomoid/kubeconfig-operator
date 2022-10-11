@@ -37,6 +37,7 @@ const (
 	CertificateSecretPrivKeyKey = "tls.key"
 	CertificateSecretCSRKey     = "tls.csr"
 	CertificateSecretCertKey    = "tls.crt"
+	KubeconfigKey               = "kubeconfig"
 )
 
 func (r *KubeconfigReconciler) createClusterRoleBinding(kubeconfig *kubeconfigv1alpha1.Kubeconfig, obj types.NamespacedName) *rbacv1.ClusterRoleBinding {
@@ -114,24 +115,6 @@ func (r *KubeconfigReconciler) createCsr(kubeconfig *kubeconfigv1alpha1.Kubeconf
 	return csr
 }
 
-// createKubeconfigSecret scaffolds a kubeconfig secret and sets ownership of that resource accordingly
-func (r *KubeconfigReconciler) createKubeconfigSecret(kubeconfig *kubeconfigv1alpha1.Kubeconfig, obj types.NamespacedName) *corev1.Secret {
-	labels := labelsForSubresources(kubeconfig)
-
-	secret := &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      obj.Name,
-			Namespace: obj.Namespace,
-			Labels:    labels,
-		},
-		Type:       corev1.SecretTypeOpaque,
-		StringData: map[string]string{},
-	}
-
-	controllerutil.SetControllerReference(kubeconfig, secret, r.Scheme)
-	return secret
-}
-
 // createKubeconfig creates a fresh kubeconfig from several cluster resources
 // csr.Status.Certificate contains the signed certificate from the kube-api-server,
 // Overall, we need (a) the key generated during the CSR generation
@@ -140,13 +123,13 @@ func (r *KubeconfigReconciler) createKubeconfigSecret(kubeconfig *kubeconfigv1al
 // createKubeconfig attempts to retrieve these elements from (a) the kube-root-ca.crt configmap
 // and (b) the client's private key and the approved certificate from the secret that tracks the
 // client data.
-func (r *KubeconfigReconciler) createKubeconfig(ctx context.Context, kubeconfig *kubeconfigv1alpha1.Kubeconfig) ([]byte, error) {
+func (r *KubeconfigReconciler) createKubeconfig(ctx context.Context, kubeconfig *kubeconfigv1alpha1.Kubeconfig, secret *corev1.Secret) ([]byte, error) {
 	clusterCA, err := r.ClusterCA(ctx)
 	if err != nil {
 		// Failed to get kube root CA, fail
 		return nil, err
 	}
-	clientKey, clientCert, err := r.ClientData(ctx, kubeconfig.Status.Secrets.UserSecret)
+	clientKey, clientCert, err := r.ClientData(ctx, secret)
 	if err != nil {
 		return nil, err
 	}

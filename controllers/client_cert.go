@@ -20,7 +20,6 @@ import (
 	"context"
 	"errors"
 
-	kubeconfigv1alpha1 "github.com/zoomoid/kubeconfig-operator/api/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/klog/v2"
@@ -40,20 +39,11 @@ func (r *KubeconfigReconciler) ClusterCA(ctx context.Context) (string, error) {
 }
 
 // ClientData gets the user's certificate and its private key from the user secret and returns them as string
-func (r *KubeconfigReconciler) ClientData(ctx context.Context, object kubeconfigv1alpha1.SecretRef) (string, string, error) {
-	clientKeySecret := &corev1.Secret{}
-
-	err := r.Get(ctx, types.NamespacedName{
-		Namespace: object.Namespace,
-		Name:      object.Name,
-	}, clientKeySecret)
-	if err != nil {
-		return "", "", err
-	}
-	clientKey := clientKeySecret.Data[CertificateSecretPrivKeyKey]
-	clientCert, ok := clientKeySecret.Data[CertificateSecretCertKey]
+func (r *KubeconfigReconciler) ClientData(ctx context.Context, object *corev1.Secret) (string, string, error) {
+	clientKey := object.Data[CertificateSecretPrivKeyKey]
+	clientCert, ok := object.Data[CertificateSecretCertKey]
 	if !ok || len(clientCert) == 0 {
-		klog.V(2).ErrorS(errors.New("no certificate found in secret"), "Secret does not contain certificate key")
+		klog.V(0).ErrorS(errors.New("no certificate found in secret"), "Secret does not contain certificate key")
 	}
 	return string(clientKey), string(clientCert), nil
 }

@@ -14,19 +14,15 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package controllers
+package phases
 
 const (
-	// PhaseUnknown indicates that the kubeconfig is either in its initial unreconciled (but defaulted) state, or entered a non-recoverable state
-	PhaseUnknown = "Unknown"
-	// PhaseProvisioningCertificate indicates that the kubeconfig's CSR is pending either automatic or manual approval by a cluster admin
-	PhaseProvisioningCertificate = "Provisioning Certificate"
-	// PhaseUpsertingUserSecret indicates that the upsertion of the user secret with the signed certificate is in progress
-	PhaseUpsertingUserSecret = "Upserting User Secret"
+	// PhasePending indicates that the kubeconfig is either in its initial unreconciled (but defaulted) state, or entered a non-recoverable state
+	PhasePending = "Pending"
+	// PhaseAwaitingApproval indicates that the kubeconfig's CSR is pending either automatic or manual approval by a cluster admin
+	PhaseAwaitingApproval = "Awaiting Approval"
 	// PhaseCreatingKubeconfig indicates that the transaction to create a user's kubeconfig is in progress
-	PhaseCreatingKubeconfig = "Creating Kubeconfig"
-	// PhaseFinished indicates the final, successful state of the kubeconfig
-	PhaseFinished = "Finished"
+	PhaseDone = "Done"
 	// PhaseFailed indicates terminal failure to reconcile the kubeconfig
 	PhaseFailed = "Failed"
 )

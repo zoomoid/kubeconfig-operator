@@ -25,8 +25,6 @@ const (
 	ConditionTypeUserSecretCreated string = "UserSecretCreated"
 	// ConditionTypeUserSecretFinished indicates if the user secret has all the required data fields
 	ConditionTypeUserSecretFinished string = "UserSecretFinished"
-	// ConditionTypeKubeconfigSecretCreated indicates the creation status of the kubeconfig secret
-	ConditionTypeKubeconfigSecretCreated string = "KubeconfigSecretCreated"
 	// ConditionTypeKubeconfigFinished indicates if the kubeconfig is complete
 	ConditionTypeKubeconfigFinished string = "KubeconfigFinished"
 )

@@ -25,6 +25,7 @@ import (
 type KubeconfigSpec struct {
 	// Username is the name associated with the future owner of the kubeconfig. The certificate is bound to this name as Common Name,
 	// and the name is used for subresources as well
+	// +kubebuilder:validation:Required
 	Username string `json:"username,omitempty"`
 
 	// When wanting to use an existing CSR, add a reference to the secret containing private key and csr here
@@ -39,6 +40,7 @@ type KubeconfigSpec struct {
 
 	// CSR contains the parameters for generating the private key and CSR for the kube-api-server to sign
 	// +optional
+	// +kubebuilder:default={signatureAlgorithm: SHA256WithRSA}
 	CSR *CertificateSigningRequest `json:"csr,omitempty"`
 
 	// Cluster contains information to template into the final kubeconfig, like names and endpoints
@@ -67,8 +69,9 @@ type Cluster struct {
 
 type CertificateSigningRequest struct {
 	// +kubebuilder:default="SHA256WithRSA"
-	SignatureAlgorithm SignatureAlgorithm                        `json:"signatureAlgorithm,omitempty"`
-	AdditionalFields   CertificateSigningRequestAdditionalFields `json:"additionalFields,omitempty"`
+	SignatureAlgorithm SignatureAlgorithm `json:"signatureAlgorithm,omitempty"`
+	// +kubebuilder:default={}
+	AdditionalFields CertificateSigningRequestAdditionalFields `json:"additionalFields,omitempty"`
 }
 
 // CertificateSigningRequestAdditionalFields contains the name fields of an X.509 certificate
@@ -101,8 +104,8 @@ type CertificateSigningRequestAdditionalFields struct {
 
 // KubeconfigStatus defines the observed state of Kubeconfig
 type KubeconfigStatus struct {
-	// Secrets is a struct containing references to the secrets created by the controller
-	Secrets CreatedSecrets `json:"secrets,omitempty"`
+	// UserSecret is a reference to the secret created by the controller
+	UserSecret SecretRef `json:"userSecret,omitempty"`
 
 	// Csr is a name reference to the CSR created by the controller
 	Csr CsrRef `json:"csr,omitempty"`
@@ -117,14 +120,10 @@ type KubeconfigStatus struct {
 	Kubeconfig string `json:"kubeconfig,omitempty"`
 
 	// +kubebuilder:default="Unknown"
-	Phase string `json:"phase,omitempty"`
+	Status string `json:"status,omitempty"`
 }
 
-type CreatedSecrets struct {
-	Kubeconfig SecretRef `json:"kubeconfigRef,omitempty"`
-	UserSecret SecretRef `json:"userSecretRef,omitempty"`
-}
-
+// +kubebuilder:validation:Enum=SHA256WithRSA;SHA384WithRSA;SHA512WithRSA;ECDSAWithSHA256;ECDSAWithSHA384;ECDSAWithSHA512;SHA256WithRSAPSS;SHA384WithRSAPSS;SHA512WithRSAPSS;PureEd25519
 type SignatureAlgorithm string
 
 const (
@@ -142,13 +141,15 @@ const (
 	PureEd25519      SignatureAlgorithm = "PureEd25519"
 )
 
+// Kubeconfig is the Schema for the kubeconfigs API
+
 // +kubebuilder:object:root=true
 // +kubebuilder:resource:scope=Cluster
 // +kubebuilder:subresource:status
-// +kubebuilder:printcolumn:name="For",type=string,JSONPath=`.spec.username`
-// +kubebuilder:printcolumn:name="Phase",type=string,JSONPath=`.status.phase`
-
-// Kubeconfig is the Schema for the kubeconfigs API
+// +kubebuilder:printcolumn:name="Username",type=string,JSONPath=`.spec.username`
+// +kubebuilder:printcolumn:name="User Secret",type=string,JSONPath=`.status.userSecret.name`
+// +kubebuilder:printcolumn:name="Status",type=string,JSONPath=`.status.status`
+// +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`,description="CreationTimestamp is a timestamp representing the server time when this object was created. It is not guaranteed to be set in happens-before order across separate operations. Clients may not set this value. It is represented in RFC3339 form and is in UTC."
 type Kubeconfig struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`

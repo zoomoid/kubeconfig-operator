@@ -20,6 +20,7 @@ import (
 	"context"
 	"reflect"
 
+	"github.com/zoomoid/kubeconfig-operator/controllers/phases"
 	"github.com/zoomoid/kubeconfig-operator/pkg/utils"
 	rbacv1 "k8s.io/api/rbac/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -66,6 +67,7 @@ func (a *kubeconfigDefaulter) InjectClient(c client.Client) error {
 }
 
 // Default implements webhook.Defaulter so a webhook will be registered for the type
+// Because we pass in a custom defaulter, we need to implement declarative defaults from kubebuilder by hand
 func (r *kubeconfigDefaulter) Default(ctx context.Context, obj runtime.Object) error {
 	kubeconfig, _ := obj.(*Kubeconfig)
 
@@ -94,6 +96,16 @@ func (r *kubeconfigDefaulter) Default(ctx context.Context, obj runtime.Object) e
 			Name:     "cluster-admin",
 			Kind:     "ClusterRole",
 		}
+	}
+
+	if kubeconfig.Spec.CSR == nil {
+		kubeconfig.Spec.CSR = &CertificateSigningRequest{
+			SignatureAlgorithm: SHA256WithRSA,
+		}
+	}
+
+	if kubeconfig.Spec.CSR.SignatureAlgorithm == "" {
+		kubeconfig.Spec.CSR.SignatureAlgorithm = SHA256WithRSA
 	}
 
 	cl := kubeconfig.Status.Conditions
@@ -133,15 +145,6 @@ func (r *kubeconfigDefaulter) Default(ctx context.Context, obj runtime.Object) e
 			Message:            "n/a",
 		})
 	}
-	if meta.FindStatusCondition(cl, ConditionTypeKubeconfigSecretCreated) == nil {
-		cl = append(cl, metav1.Condition{
-			Type:               ConditionTypeKubeconfigSecretCreated,
-			Status:             metav1.ConditionUnknown,
-			LastTransitionTime: metav1.Now(),
-			Reason:             "Unknown",
-			Message:            "n/a",
-		})
-	}
 	if meta.FindStatusCondition(cl, ConditionTypeKubeconfigFinished) == nil {
 		cl = append(cl, metav1.Condition{
 			Type:               ConditionTypeKubeconfigFinished,
@@ -154,6 +157,7 @@ func (r *kubeconfigDefaulter) Default(ctx context.Context, obj runtime.Object) e
 
 	kubeconfig.Status.Conditions = cl
 
+	kubeconfig.Status.Status = phases.PhasePending
 	return nil
 }
 
