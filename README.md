@@ -1,7 +1,5 @@
 # kubeconfig-operator
 
-// TODO(user): Add simple overview of use/purpose
-
 The Kubeconfig operator is meant to ease generation of Kubeconfig files for users of the cluster. Cluster-admins can create a
 custom resource `Kubeconfig`, and the operator will handle the steps required to create a fully-signed and bound kubeconfig
 YAML to be delivered to the new cluster user (because some of the steps can get a bit tedious, like handling OpenSSL certificate signing
@@ -9,7 +7,15 @@ requests by hand).
 
 ## Description
 
-// TODO(user): An in-depth paragraph about your project and overview of use
+The operator consists of a Custom Resource Definition for the Kubeconfig request, and two controllers.
+
+The custom resource serves as a request for a new Kubeconfig, which on top of all includes a username.
+You can also add further configuration, such as toggling auto-approval and selecting other parameters for the certificate
+request. Have a look at `./config/samples` for some example Kubeconfigs.
+
+The first controller reconciles all Kubeconfig custom resources, and acts as the manager of the workflow. It creates secrets, certificate signing
+requests and cluster role bindings for the Kubeconfig object and is the owner of all created resources such that garbage collection works as expected. The second controller reconciles all certificate signing requests and auto-approves requests
+that where annotated to be automatically approved.
 
 ## Getting Started
 
@@ -54,7 +60,8 @@ make undeploy
 
 ## Contributing
 
-// TODO(user): Add detailed information on how you would like others to contribute to this project
+Contribution is welcome, and I'm up for any feature requests. Just fork the project and open a pull request with an accompanying issue
+marked accordingly.
 
 ### How it works
 
